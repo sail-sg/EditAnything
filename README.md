@@ -1,4 +1,4 @@
-# Edit Anything by Segment Anything
+# Edit Anything by Segment-Anything
 
 This is an ongoing project aims to **Edit and Generate Anything** in an image,
 powered by [Segment Anything](https://github.com/facebookresearch/segment-anything), [ControlNet](https://github.com/lllyasviel/ControlNet),
@@ -21,7 +21,7 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 
-## Generation Anything by Segment Anything
+## Generating Anything by Segment-Anything
 
 BLIP2 Prompt: "a large white and red ferry"
 ![p](images/sample1.jpg)
