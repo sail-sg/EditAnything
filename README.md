@@ -98,7 +98,7 @@ have GUI to run the gradio demo.
 
 1. Generate training dataset with `dataset_build.py`.
 2. Transfer stable-diffusion model with `tool_add_control_sd21.py`.
-2. Train model with `tool_add_control_sd21.py`.
+2. Train model with `sam_train_sd21.py`.
 
 
 # Acknowledgement
@@ -111,4 +111,4 @@ This project is based on:
 [Stable Diffusion](https://huggingface.co/spaces/stabilityai/stable-diffusion),
 [Large-scale Unsupervised Semantic Segmentation](https://github.com/LUSSeg)
 
-Thanks for these amazing project!
+Thanks for these amazing projects!
