@@ -17,6 +17,7 @@ are very welcomed!
 
 Highlight features:
 - Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
+- category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
 
 
@@ -40,9 +41,9 @@ BLIP2 Prompt: "a black drone flying in the blue sky"
 
 # Ongoing
 
-- [x] Conditional Generation trained with 85k samples in SM dataset.
+- [x] Conditional Generation trained with 85k samples in SAM dataset.
 
-- [ ] Training with more images from LAION and SM.
+- [ ] Training with more images from LAION and SAM.
 
 - [ ] Interactive control on different masks for image editing.
 
