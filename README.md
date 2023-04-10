@@ -11,6 +11,8 @@ are very welcomed!
 
 # News
 
+2023/04/10 - We transfer the pretrained model into diffusers style, the pretrained model is auto loaded when using `sam2image_diffuser.py`.
+
 2023/04/09 - We released a pretrained model of StableDiffusion based ControlNet that generate images conditioned by SAM segmentation.
 
 # Features
@@ -80,17 +82,20 @@ wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
 
 # BLIP2 model will be auto downloaded.
 
-# Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface.
+# Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface. 
+# No need to download this if your are using sam2image_diffuser.py!!!
 https://huggingface.co/shgao/edit-anything-v0-1
 
 ```
 
 
 **Run Demo**
-```
+```bash
+python sam2image_diffuser.py
+# or 
 python sam2image.py
 ```
-Set 'use_gradio = True' in sam2image.py if you
+Set 'use_gradio = True' in sam2image.py and sam2image_diffuser.py if you
 have GUI to run the gradio demo.
 
 
