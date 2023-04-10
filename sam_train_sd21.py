@@ -2,7 +2,7 @@ from share import *
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from sam_dataset import SAMDataset
+from utils.sam_dataset import SAMDataset
 from cldm.logger import ImageLogger
 from cldm.model import create_model, load_state_dict
 import torch

@@ -1,7 +1,4 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-from diffusers.utils import load_image
-from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 from torchvision.utils import save_image
 from PIL import Image
 from cldm.ddim_hacked import DDIMSampler
@@ -17,35 +14,43 @@ import numpy as np
 import torch
 import random
 import os
+import requests
+from io import BytesIO
 from annotator.util import resize_image, HWC3
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-use_blip = True
+use_blip = False
 use_gradio = False
 
 # Diffusion init using diffusers.
-# diffusers==0.14.0 required.
 
-base_model_path = "stabilityai/stable-diffusion-2-1"
+# diffusers==0.14.0 required.
+from diffusers import ControlNetModel, UniPCMultistepScheduler
+from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
+from diffusers.utils import load_image
+import torch
+
+base_model_path = "stabilityai/stable-diffusion-2-inpainting"
 controlnet_path = "shgao/edit-anything-v0-1-1"
 
-controlnet = ControlNetModel.from_pretrained(
-    controlnet_path, torch_dtype=torch.float16)
-pipe = StableDiffusionControlNetPipeline.from_pretrained(
+controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
     base_model_path, controlnet=controlnet, torch_dtype=torch.float16
 )
 # speed up diffusion process with faster scheduler and memory optimization
 pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
 # remove following line if xformers is not installed
 pipe.enable_xformers_memory_efficient_attention()
+
 # pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
 pipe.to(device)
 
-
 # Segment-Anything init.
 # pip install git+https://github.com/facebookresearch/segment-anything.git
-sam_checkpoint = "models/sam_vit_h_4b8939.pth"
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+
+sam_checkpoint = "../segment-anything/sam_vit_h_4b8939.pth"
 model_type = "default"
 sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
 sam.to(device=device)
@@ -104,13 +109,13 @@ def get_sam_control(image):
     return full_img, res
 
 
-def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+def process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
     with torch.no_grad():
         if use_blip:
             print("Generating text:")
             blip2_prompt = get_blip2_text(input_image)
             print("Generated text:", blip2_prompt)
-            if len(prompt) > 0:
+            if len(prompt)>0:
                 prompt = blip2_prompt + ',' + prompt
             else:
                 prompt = blip2_prompt
@@ -141,39 +146,56 @@ def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resoluti
         print("control.shape", control.shape)
         generator = torch.manual_seed(seed)
         x_samples = pipe(
+            image=input_image,
+            mask_image=mask_image,
             prompt=[prompt + ', ' + a_prompt] * num_samples,
-            negative_prompt=[n_prompt] * num_samples,
+            negative_prompt=[n_prompt] * num_samples,  
             num_images_per_prompt=num_samples,
-            num_inference_steps=ddim_steps,
-            generator=generator,
+            num_inference_steps=ddim_steps, 
+            generator=generator, 
+            controlnet_conditioning_image=control.type(torch.float16),
             height=H,
             width=W,
-            image=control.type(torch.float16),
         ).images
 
-        results = [x_samples[i] for i in range(num_samples)]
-    return [full_segmask] + results
 
+        results = [x_samples[i] for i in range(num_samples)]
+    return [full_segmask, mask_image] + results
+
+
+def download_image(url):
+    response = requests.get(url)
+    return Image.open(BytesIO(response.content)).convert("RGB")
 
 # disable gradio when not using GUI.
 if not use_gradio:
-    image_path = "images/sa_309398.jpg"
-    input_image = Image.open(image_path)
+    # image_path = "images/sa_309398.jpg"
+
+    img_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png"
+    mask_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png"
+    
+
+    input_image = download_image(img_url).resize((512, 512))
+    mask_image = download_image(mask_url).resize((512, 512))
+    # image_path = "../data/files/sa_309498.jpg"
+    # input_image = Image.open(image_path)
     input_image = np.array(input_image, dtype=np.uint8)
-    prompt = ""
+    mask_image = 255 - np.array(mask_image, dtype=np.uint8) # Edit more complex background.
+    mask_image = Image.fromarray(mask_image)
+    prompt = "chairs by the lake, sunny day, spring"
     a_prompt = 'best quality, extremely detailed'
     n_prompt = 'longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality'
-    num_samples = 4
+    num_samples = 3
     image_resolution = 512
     detect_resolution = 512
-    ddim_steps = 100
+    ddim_steps = 30
     guess_mode = False
     strength = 1.0
     scale = 9.0
-    seed = 10086
+    seed = -1
     eta = 0.0
 
-    outputs = process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+    outputs = process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                       detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
 
     image_list = []
@@ -192,6 +214,7 @@ if not use_gradio:
     save_image(image_list, "sample.jpg", nrow=3,
                normalize=True, value_range=(0, 255))
 else:
+    print("The GUI is not tested yet. Please open an issue if you find bugs.")
     block = gr.Blocks().queue()
     with block:
         with gr.Row():
@@ -200,6 +223,7 @@ else:
         with gr.Row():
             with gr.Column():
                 input_image = gr.Image(source='upload', type="numpy")
+                mask_image = gr.Image(source='upload', type="numpy")
                 prompt = gr.Textbox(label="Prompt")
                 run_button = gr.Button(label="Run")
                 with gr.Accordion("Advanced options", open=False):
@@ -226,7 +250,7 @@ else:
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-        ips = [input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+        ips = [input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
 

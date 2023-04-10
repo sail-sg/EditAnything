@@ -4,12 +4,15 @@ This is an ongoing project aims to **Edit and Generate Anything** in an image,
 powered by [Segment Anything](https://github.com/facebookresearch/segment-anything), [ControlNet](https://github.com/lllyasviel/ControlNet),
 [BLIP2](https://github.com/salesforce/LAVIS/tree/main/projects/blip2), [Stable Diffusion](https://huggingface.co/spaces/stabilityai/stable-diffusion), etc.
 
-This is a small project for fun. Any forms of contribution and suggestion
+A project for fun. 
+Any forms of contribution and suggestion
 are very welcomed!
 
 
 
 # News
+
+2023/04/10 - An initial version of edit-anything is in `sam2edit.py`.
 
 2023/04/10 - We transfer the pretrained model into diffusers style, the pretrained model is auto loaded when using `sam2image_diffuser.py`. Now you can combine our pretrained model with different base models easily!
 
@@ -22,8 +25,13 @@ Highlight features:
 - category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
 
+## Edit Anything by Segment-Anything
+Human Prompt: "chairs by the lake, sunny day, spring"
+![p](images/edit_sample1.jpg)
+An initial version of edit-anything.
 
-## Generating Anything by Segment-Anything
+
+## Generate Anything by Segment-Anything
 
 BLIP2 Prompt: "a large white and red ferry"
 ![p](images/sample1.jpg)
@@ -39,6 +47,10 @@ BLIP2 Prompt: "a black drone flying in the blue sky"
 1) The human prompt and BLIP2 generated prompt build the text instruction.
 2) The SAM model segment the input image to generate segmentation mask without category.
 3) The segmentation mask and text instruction guide the image generation.
+
+Note: Due to the privacy protection in the SAM dataset,
+faces in generated images are also blurred. We are training new models
+with unblurred images to solve this.
 
 
 # Ongoing
@@ -94,8 +106,10 @@ https://huggingface.co/shgao/edit-anything-v0-1
 python sam2image_diffuser.py
 # or 
 python sam2image.py
+# or 
+python sam2edit.py
 ```
-Set 'use_gradio = True' in sam2image.py and sam2image_diffuser.py if you
+Set 'use_gradio = True' in these files if you
 have GUI to run the gradio demo.
 
 

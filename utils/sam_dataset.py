@@ -6,7 +6,7 @@ import os
 from torch.utils.data import Dataset
 import pycocotools.mask as maskUtils
 from torchvision import transforms
-import transforms as custom_transforms
+import utils.transforms as custom_transforms
 from PIL import Image
 class SAMDataset(Dataset):
     def __init__(self, data_path='../data/files', txt_path='../data/data_85616.txt'):
