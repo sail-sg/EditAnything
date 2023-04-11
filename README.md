@@ -32,7 +32,7 @@ Human Prompt: "esplendent sunset sky, red brick wall"
 
 Human Prompt: "chairs by the lake, sunny day, spring"
 ![p](images/edit_sample1.jpg)
-An initial version of edit-anything.
+An initial version of edit-anything. (We will add more controls on masks very soon.)
 
 
 ## Generate Anything by Segment-Anything
