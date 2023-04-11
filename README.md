@@ -26,6 +26,10 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 ## Edit Anything by Segment-Anything
+
+Human Prompt: "esplendent sunset sky, red brick wall"
+![p](images/edit_sample2.jpg)
+
 Human Prompt: "chairs by the lake, sunny day, spring"
 ![p](images/edit_sample1.jpg)
 An initial version of edit-anything.

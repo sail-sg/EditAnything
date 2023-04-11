@@ -140,13 +140,18 @@ def process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, im
         control = torch.stack([control for _ in range(num_samples)], dim=0)
         control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
+        mask_image = HWC3(mask_image.astype(np.uint8))
+        mask_image = cv2.resize(
+            mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
+        mask_image = Image.fromarray(mask_image)
+
+
         if seed == -1:
             seed = random.randint(0, 65535)
         seed_everything(seed)
-        print("control.shape", control.shape)
         generator = torch.manual_seed(seed)
         x_samples = pipe(
-            image=input_image,
+            image=img,
             mask_image=mask_image,
             prompt=[prompt + ', ' + a_prompt] * num_samples,
             negative_prompt=[n_prompt] * num_samples,  
@@ -169,20 +174,14 @@ def download_image(url):
 
 # disable gradio when not using GUI.
 if not use_gradio:
-    # image_path = "images/sa_309398.jpg"
+    image_path = "../data/samples/sa_223750.jpg"
+    mask_path = "../data/samples/sa_223750inpaint.png"
+    input_image = Image.open(image_path)
+    mask_image = Image.open(mask_path)
 
-    img_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png"
-    mask_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png"
-    
-
-    input_image = download_image(img_url).resize((512, 512))
-    mask_image = download_image(mask_url).resize((512, 512))
-    # image_path = "../data/files/sa_309498.jpg"
-    # input_image = Image.open(image_path)
     input_image = np.array(input_image, dtype=np.uint8)
-    mask_image = 255 - np.array(mask_image, dtype=np.uint8) # Edit more complex background.
-    mask_image = Image.fromarray(mask_image)
-    prompt = "chairs by the lake, sunny day, spring"
+    mask_image = np.array(mask_image, dtype=np.uint8)
+    prompt = "esplendent sunset sky, red brick wall"
     a_prompt = 'best quality, extremely detailed'
     n_prompt = 'longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality'
     num_samples = 3
@@ -223,7 +222,6 @@ else:
         with gr.Row():
             with gr.Column():
                 input_image = gr.Image(source='upload', type="numpy")
-                mask_image = gr.Image(source='upload', type="numpy")
                 prompt = gr.Textbox(label="Prompt")
                 run_button = gr.Button(label="Run")
                 with gr.Accordion("Advanced options", open=False):
@@ -250,7 +248,7 @@ else:
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-        ips = [input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+        ips = [input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
 
