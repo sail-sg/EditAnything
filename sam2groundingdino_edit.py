@@ -127,7 +127,7 @@ def get_sam_control(image):
     return full_img, res
 
 
-def prompt2mask(original_image, caption, box_threshold=0.25, text_threshold=0.25):
+def prompt2mask(original_image, caption, box_threshold=0.25, text_threshold=0.25, num_boxes=2):
     def image_transform_grounding(init_image):
         transform = T.Compose([
             T.RandomResize([800], max_size=1333),
@@ -145,10 +145,10 @@ def prompt2mask(original_image, caption, box_threshold=0.25, text_threshold=0.25
     _, image_tensor = image_transform_grounding(original_image)
     boxes, logits, phrases = predict(grounding_model,
                                      image_tensor, caption, box_threshold, text_threshold, device='cpu')
-
-    # print(logits.size(), boxes.size())
+    print(logits)
+    print('number of boxes: ', boxes.size(0))
     # exit(0)
-    from PIL import Image, ImageDraw, ImageFont
+    # from PIL import Image, ImageDraw, ImageFont
     H, W = original_image.size[1], original_image.size[0]
     boxes = boxes * torch.Tensor([W, H, W, H])
     boxes[:, :2] = boxes[:, :2] - boxes[:, 2:] / 2
@@ -170,30 +170,32 @@ def prompt2mask(original_image, caption, box_threshold=0.25, text_threshold=0.25
     # original_image.save('debug.jpg')
     # exit(0)
 
-    sam_predictor.set_image(image_np)
-
-    transformed_boxes = sam_predictor.transform.apply_boxes_torch(boxes, image_np.shape[:2])
-    masks, _, _ = sam_predictor.predict_torch(
-        point_coords=None,
-        point_labels=None,
-        boxes=transformed_boxes.to(device),
-        multimask_output=False,
-    )
-
-    # remove small disconnected regions and holes
-    fine_masks = []
-    for mask in masks.to('cpu').numpy():  # masks: [num_masks, 1, h, w]
-        fine_masks.append(remove_small_regions(mask[0], 400, mode="holes")[0])
-    masks = np.stack(fine_masks, axis=0)[:, np.newaxis]
-    masks = torch.from_numpy(masks)
-
-    num_obj = len(logits)
     final_m = torch.zeros((image_np.shape[0], image_np.shape[1]))
-    for obj_ind in range(num_obj):
-        # box = boxes[obj_ind]
 
-        m = masks[obj_ind][0]
-        final_m += m
+    if boxes.size(0) > 0:
+        sam_predictor.set_image(image_np)
+
+        transformed_boxes = sam_predictor.transform.apply_boxes_torch(boxes, image_np.shape[:2])
+        masks, _, _ = sam_predictor.predict_torch(
+            point_coords=None,
+            point_labels=None,
+            boxes=transformed_boxes.to(device),
+            multimask_output=False,
+        )
+
+        # remove small disconnected regions and holes
+        fine_masks = []
+        for mask in masks.to('cpu').numpy():  # masks: [num_masks, 1, h, w]
+            fine_masks.append(remove_small_regions(mask[0], 400, mode="holes")[0])
+        masks = np.stack(fine_masks, axis=0)[:, np.newaxis]
+        masks = torch.from_numpy(masks)
+
+        num_obj = min(len(logits), num_boxes)
+        for obj_ind in range(num_obj):
+            # box = boxes[obj_ind]
+
+            m = masks[obj_ind][0]
+            final_m += m
     final_m = (final_m > 0).to('cpu').numpy()
     # print(final_m.max(), final_m.min())
     return np.dstack((final_m, final_m, final_m)) * 255
@@ -271,7 +273,7 @@ if not use_gradio:
     input_image_pil = Image.open(image_path).convert('RGB')
     input_image = np.array(input_image_pil, dtype=np.uint8)[:, :, :3]
 
-    mask_prompt = 'dog.'
+    mask_prompt = 'bench.'
     # mask_image = np.array(prompt2mask(input_image, mask_prompt), dtype=np.uint8)
     prompt = "cat"
     a_prompt = 'best quality, extremely detailed'

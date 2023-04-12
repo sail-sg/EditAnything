@@ -143,6 +143,8 @@ def prompt2mask(original_image, text_prompt):
             filter_boxes.append(boxes[obj_ind])
             filter_classes.append(classes[obj_ind])
 
+    final_m = torch.zeros((original_image.shape[0], original_image.shape[1]))
+
     if len(filter_boxes) > 0:
         # sam model inference
         sam_predictor.set_image(original_image)
@@ -163,15 +165,14 @@ def prompt2mask(original_image, text_prompt):
         masks = np.stack(fine_masks, axis=0)[:, np.newaxis]
         masks = torch.from_numpy(masks)
 
-    num_obj = len(scores)
-    final_m = torch.zeros((original_image.shape[0], original_image.shape[1]))
-    for obj_ind in range(num_obj):
-        # box = boxes[obj_ind]
-        score = scores[obj_ind]
-        if score < 0.5:
-            continue
-        m = masks[obj_ind][0]
-        final_m += m
+        num_obj = len(scores)
+        for obj_ind in range(num_obj):
+            # box = boxes[obj_ind]
+            score = scores[obj_ind]
+            if score < 0.5:
+                continue
+            m = masks[obj_ind][0]
+            final_m += m
     final_m = (final_m > 0).to('cpu').numpy()
     # print(final_m.max(), final_m.min())
     return np.dstack((final_m, final_m, final_m)) * 255
