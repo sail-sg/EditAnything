@@ -28,16 +28,16 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 ## Edit Specific Thing by Text-Grounding and Segment-Anything
-### Part Grounding
+### Editing by Text-guided Part Mask
 Text Grounding: "dog head"
 
 Human Prompt: "cute dog"
 ![p](images/sample_dog_head.jpg)
 
-### Object Grounding
+### Editing by Text-guided Object Mask
 Text Grounding: "bench"
 
-Human Prompt: "bench"
+Human Prompt: "bench" 
 ![p](images/sample_bench.jpg)
 
 ## Edit Anything by Segment-Anything
