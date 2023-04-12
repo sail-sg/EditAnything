@@ -25,12 +25,14 @@ Highlight features:
 - category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
 
-## Edit Specific Thing by & Text-Grounding and Segment-Anything
+## Edit Specific Thing by Text-Grounding and Segment-Anything
+### Part Grounding
 Text Grounding: "dog head"
 
 Human Prompt: "cute dog"
 ![p](images/sample_dog_head.jpg)
 
+### Object Grounding
 Text Grounding: "bench"
 
 Human Prompt: "bench"
