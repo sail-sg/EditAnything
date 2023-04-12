@@ -34,6 +34,11 @@ Text Grounding: "dog head"
 Human Prompt: "cute dog"
 ![p](images/sample_dog_head.jpg)
 
+Text Grounding: "cat eye"
+
+Human Prompt: "A cute small humanoid cat"
+![p](images/sample_cat_eye.jpg)
+
 ### Editing by Text-guided Object Mask
 Text Grounding: "bench"
 
