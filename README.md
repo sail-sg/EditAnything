@@ -12,6 +12,8 @@ are very welcomed!
 
 # News
 
+2023/04/12 - An initial version of text-guided edit-anything is in `sam2groundingdino_edit.py`(object-level) and `sam2vlpart_edit.py`(part-level).
+
 2023/04/10 - An initial version of edit-anything is in `sam2edit.py`.
 
 2023/04/10 - We transfer the pretrained model into diffusers style, the pretrained model is auto loaded when using `sam2image_diffuser.py`. Now you can combine our pretrained model with different base models easily!
