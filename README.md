@@ -99,7 +99,7 @@ wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
 # BLIP2 model will be auto downloaded.
 
 # Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface. 
-# No need to download this if your are using sam2image_diffuser.py!!!
+# No need to download this if your are using sam2image_diffuser.py!!! But please install safetensors for reading the ckpt.
 https://huggingface.co/shgao/edit-anything-v0-1
 
 ```
