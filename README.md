@@ -127,7 +127,7 @@ wget https://github.com/Cheems-Seminar/segment-anything-and-name-it/releases/dow
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
 
 # Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface. 
-# No need to download this if your are using sam2image_diffuser.py!!!
+# No need to download this if your are using sam2image_diffuser.py!!! But please install safetensors for reading the ckpt.
 https://huggingface.co/shgao/edit-anything-v0-1
 
 ```
