@@ -12,6 +12,10 @@ are very welcomed!
 
 # News
 
+2023/04/14 - New model trained with LAION dataset is released.
+
+2023/04/13 - Support pretrained model auto downloading and gradio in 'sam2image.py'.
+
 2023/04/12 - An initial version of text-guided edit-anything is in `sam2groundingdino_edit.py`(object-level) and `sam2vlpart_edit.py`(part-level).
 
 2023/04/10 - An initial version of edit-anything is in `sam2edit.py`.
@@ -131,17 +135,14 @@ wget https://github.com/Cheems-Seminar/segment-anything-and-name-it/releases/dow
 # Grounding DINO Model.
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
 
-# Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface. 
-# No need to download this if your are using sam2image_diffuser.py!!! But please install safetensors for reading the ckpt.
-https://huggingface.co/shgao/edit-anything-v0-1
+# Get pretrained model from huggingface. 
+# No need to download this! But please install safetensors for reading the ckpt.
 
 ```
 
 
 **Run Demo**
 ```bash
-python sam2image_diffuser.py
-# or 
 python sam2image.py
 # or 
 python sam2edit.py
@@ -152,6 +153,13 @@ python sam2groundingdino_edit.py
 ```
 Set 'use_gradio = True' in these files if you
 have GUI to run the gradio demo.
+
+# Model Zoo
+
+| Model | Features | Download Path |
+|-------|----------|---------------|
+|SAM Pretrained(v0-1) | Good Nature Sense | [shgao/edit-anything-v0-1-1](https://huggingface.co/shgao/edit-anything-v0-1-1) |
+|LAION Pretrained(v0-3) | Good Face        | [shgao/edit-anything-v0-3](https://huggingface.co/shgao/edit-anything-v0-3)
 
 
 # Training

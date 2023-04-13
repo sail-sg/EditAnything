@@ -32,7 +32,7 @@ base_model_path = "stabilityai/stable-diffusion-2-1"
 
 
 config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
-                           ('LAION Pretrained(v0-3)', 'shgao/edit-anything-ckpt-v0-3'),
+                           ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
                           ])
 
 
