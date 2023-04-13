@@ -126,7 +126,7 @@ def get_sam_control(image):
     return full_img, res
 
 
-def process(condition_model, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+def process(condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
     
     global default_controlnet_path
     global pipe
@@ -137,7 +137,7 @@ def process(condition_model, input_image, prompt, a_prompt, n_prompt, num_sample
         default_controlnet_path = config_dict[condition_model]
 
     with torch.no_grad():
-        if use_blip:
+        if use_blip and (enable_auto_prompt or len(prompt) == 0):
             print("Generating text:")
             blip2_prompt = get_blip2_text(input_image)
             print("Generated text:", blip2_prompt)
@@ -240,6 +240,8 @@ else:
                                             multiselect=False)
                 num_samples = gr.Slider(
                         label="Images", minimum=1, maximum=12, value=1, step=1)
+                        
+                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
                 with gr.Accordion("Advanced options", open=False):
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
@@ -264,7 +266,7 @@ else:
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
-        ips = [condition_model, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+        ips = [condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
 
