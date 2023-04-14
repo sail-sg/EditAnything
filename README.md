@@ -12,6 +12,12 @@ are very welcomed!
 
 # News
 
+2023/04/14 - New model trained with LAION dataset is released.
+
+2023/04/13 - Support pretrained model auto downloading and gradio in 'sam2image.py'.
+
+2023/04/12 - An initial version of text-guided edit-anything is in `sam2groundingdino_edit.py`(object-level) and `sam2vlpart_edit.py`(part-level).
+
 2023/04/10 - An initial version of edit-anything is in `sam2edit.py`.
 
 2023/04/10 - We transfer the pretrained model into diffusers style, the pretrained model is auto loaded when using `sam2image_diffuser.py`. Now you can combine our pretrained model with different base models easily!
@@ -36,6 +42,24 @@ Highlight features:
 - category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
 
+
+## Edit Specific Thing by Text-Grounding and Segment-Anything
+### Editing by Text-guided Part Mask
+Text Grounding: "dog head"
+
+Human Prompt: "cute dog"
+![p](images/sample_dog_head.jpg)
+
+Text Grounding: "cat eye"
+
+Human Prompt: "A cute small humanoid cat"
+![p](images/sample_cat_eye.jpg)
+
+### Editing by Text-guided Object Mask
+Text Grounding: "bench"
+
+Human Prompt: "bench" 
+![p](images/sample_bench.jpg)
 
 ## Edit Anything by Segment-Anything
 
@@ -99,6 +123,13 @@ Put these models in `models` folder.
 pip install git+https://github.com/huggingface/transformers.git
 
 pip install git+https://github.com/facebookresearch/segment-anything.git
+
+# For text-guided editing
+pip install git+https://github.com/openai/CLIP.git
+
+pip install git+https://github.com/facebookresearch/detectron2.git
+
+pip install git+https://github.com/IDEA-Research/GroundingDINO.git
 ```
 
 **Download pretrained model**
@@ -110,23 +141,37 @@ wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
 
 # BLIP2 model will be auto downloaded.
 
-# Get edit-anything-ckpt-v0-1.ckpt pretrained model from huggingface. 
-# No need to download this if your are using sam2image_diffuser.py!!!
-https://huggingface.co/shgao/edit-anything-v0-1
+# Part Grounding Swin-Base Model.
+wget https://github.com/Cheems-Seminar/segment-anything-and-name-it/releases/download/v1.0/swinbase_part_0a0000.pth
+
+# Grounding DINO Model.
+wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
+
+# Get pretrained model from huggingface. 
+# No need to download this! But please install safetensors for reading the ckpt.
 
 ```
 
 
 **Run Demo**
 ```bash
-python sam2image_diffuser.py
-# or 
 python sam2image.py
 # or 
 python sam2edit.py
+# or
+python sam2vlpart_edit.py
+# or
+python sam2groundingdino_edit.py
 ```
 Set 'use_gradio = True' in these files if you
 have GUI to run the gradio demo.
+
+# Model Zoo
+
+| Model | Features | Download Path |
+|-------|----------|---------------|
+|SAM Pretrained(v0-1) | Good Nature Sense | [shgao/edit-anything-v0-1-1](https://huggingface.co/shgao/edit-anything-v0-1-1) |
+|LAION Pretrained(v0-3) | Good Face        | [shgao/edit-anything-v0-3](https://huggingface.co/shgao/edit-anything-v0-3)
 
 
 # Training
@@ -144,6 +189,8 @@ This project is based on:
 [BLIP2](https://github.com/salesforce/LAVIS/tree/main/projects/blip2),
 [MDT](https://github.com/sail-sg/MDT),
 [Stable Diffusion](https://huggingface.co/spaces/stabilityai/stable-diffusion),
-[Large-scale Unsupervised Semantic Segmentation](https://github.com/LUSSeg)
+[Large-scale Unsupervised Semantic Segmentation](https://github.com/LUSSeg),
+[Grounded Segment Anything: From Objects to Parts](https://github.com/Cheems-Seminar/segment-anything-and-name-it),
+[Grounded-Segment-Anything](https://github.com/IDEA-Research/Grounded-Segment-Anything)
 
 Thanks for these amazing projects!
