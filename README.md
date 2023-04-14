@@ -24,12 +24,27 @@ are very welcomed!
 
 2023/04/09 - We released a pretrained model of StableDiffusion based ControlNet that generate images conditioned by SAM segmentation.
 
+# Keep the layout and Generate your season!
+<div>
+    <img src="images/paint.jpg" height=256  alt="original paint">
+    <img src="images/seg.png" height=256  alt="SAM">
+</div>
+
+Human Prompt: "A paint of spring/summer/autumn/winter field."
+<div>
+    <img src="images/spring.png" height=256 alt="spring">
+    <img src="images/summer.png" height=256 alt="summer">
+    <img src="images/autumn.png" height=256 alt="autumn">
+    <img src="images/winter.png" height=256 alt="winter">
+</div>
+
 # Features
 
 Highlight features:
 - Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
 - category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
+
 
 ## Edit Specific Thing by Text-Grounding and Segment-Anything
 ### Editing by Text-guided Part Mask

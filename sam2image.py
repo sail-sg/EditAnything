@@ -16,6 +16,7 @@ import random
 import os
 from annotator.util import resize_image, HWC3
 
+
 def create_demo():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_blip = True
@@ -26,11 +27,9 @@ def create_demo():
 
     base_model_path = "stabilityai/stable-diffusion-2-1"
 
-
     config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
-                            ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
-                            ])
-
+                               ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
+                               ])
 
     def obtain_generation_model(controlnet_path):
         controlnet = ControlNetModel.from_pretrained(
@@ -50,24 +49,25 @@ def create_demo():
     default_controlnet_path = config_dict['LAION Pretrained(v0-3)']
     pipe = obtain_generation_model(default_controlnet_path)
 
-
     # Segment-Anything init.
     # pip install git+https://github.com/facebookresearch/segment-anything.git
     try:
         from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
     except ImportError:
         print('segment_anything not installed')
-        result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
-        print(f'Install segment_anything {result}')   
+        result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'],
+                                check=True)
+        print(f'Install segment_anything {result}')
     if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
-        result = subprocess.run(['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
-        print(f'Download sam_vit_h_4b8939.pth {result}')   
+        result = subprocess.run(
+            ['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'],
+            check=True)
+        print(f'Download sam_vit_h_4b8939.pth {result}')
     sam_checkpoint = "models/sam_vit_h_4b8939.pth"
     model_type = "default"
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
     mask_generator = SamAutomaticMaskGenerator(sam)
-
 
     # BLIP2 init.
     if use_blip:
@@ -81,14 +81,12 @@ def create_demo():
         blip_model.to(device)
         blip_model.to(device)
 
-
     def get_blip2_text(image):
         inputs = processor(image, return_tensors="pt").to(device, torch.float16)
         generated_ids = blip_model.generate(**inputs, max_new_tokens=50)
         generated_text = processor.batch_decode(
             generated_ids, skip_special_tokens=True)[0].strip()
         return generated_text
-
 
     def show_anns(anns):
         if len(anns) == 0:
@@ -106,7 +104,7 @@ def create_demo():
             map[m != 0] = i + 1
             color_mask = np.random.random((1, 3)).tolist()[0]
             full_img[m != 0] = color_mask
-        full_img = full_img*255
+        full_img = full_img * 255
         # anno encoding from https://github.com/LUSSeg/ImageNet-S
         res = np.zeros((map.shape[0], map.shape[1], 3))
         res[:, :, 0] = map % 256
@@ -115,19 +113,18 @@ def create_demo():
         full_img = Image.fromarray(np.uint8(full_img))
         return full_img, res
 
-
     def get_sam_control(image):
         masks = mask_generator.generate(image)
         full_img, res = show_anns(masks)
         return full_img, res
 
+    def process(condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+                image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
-    def process(condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
-        
         global default_controlnet_path
         global pipe
         print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
-        if default_controlnet_path!=config_dict[condition_model]:
+        if default_controlnet_path != config_dict[condition_model]:
             print("Change condition model to:", config_dict[condition_model])
             pipe = obtain_generation_model(config_dict[condition_model])
             default_controlnet_path = config_dict[condition_model]
@@ -181,7 +178,6 @@ def create_demo():
             results = [x_samples[i] for i in range(num_samples)]
         return [full_segmask] + results, prompt
 
-
     # disable gradio when not using GUI.
     if not use_gradio:
         # This part is not updated, it's just a example to use it without GUI.
@@ -202,8 +198,9 @@ def create_demo():
         seed = 10086
         eta = 0.0
 
-        outputs, full_text = process(condition_model, input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                        detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
+        outputs, full_text = process(condition_model, input_image, prompt, a_prompt, n_prompt, num_samples,
+                                     image_resolution,
+                                     detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
 
         image_list = []
         input_image = resize_image(input_image, 512)
@@ -219,7 +216,7 @@ def create_demo():
         image_list = torch.stack(image_list).permute(0, 3, 1, 2)
 
         save_image(image_list, "sample.jpg", nrow=3,
-                normalize=True, value_range=(0, 255))
+                   normalize=True, value_range=(0, 255))
     else:
         block = gr.Blocks()
         with block as demo:
@@ -232,12 +229,12 @@ def create_demo():
                     prompt = gr.Textbox(label="Prompt (Optional)")
                     run_button = gr.Button(label="Run")
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                value=list(config_dict.keys())[0],
-                                                label='Model',
-                                                multiselect=False)
+                                                  value=list(config_dict.keys())[0],
+                                                  label='Model',
+                                                  multiselect=False)
                     num_samples = gr.Slider(
-                            label="Images", minimum=1, maximum=12, value=1, step=1)
-                            
+                        label="Images", minimum=1, maximum=12, value=1, step=1)
+
                     enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
                     with gr.Accordion("Advanced options", open=False):
                         image_resolution = gr.Slider(
@@ -252,21 +249,23 @@ def create_demo():
                         scale = gr.Slider(
                             label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
                         seed = gr.Slider(label="Seed", minimum=-1,
-                                        maximum=2147483647, step=1, randomize=True)
+                                         maximum=2147483647, step=1, randomize=True)
                         eta = gr.Number(label="eta (DDIM)", value=0.0)
                         a_prompt = gr.Textbox(
                             label="Added Prompt", value='best quality, extremely detailed')
                         n_prompt = gr.Textbox(label="Negative Prompt",
-                                            value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+                                              value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
                 with gr.Column():
                     result_gallery = gr.Gallery(
                         label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                     result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+            ips = [condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+                   image_resolution,
+                   detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
             run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
             return demo
+
 
 if __name__ == '__main__':
     demo = create_demo()
