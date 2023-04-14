@@ -1,5 +1,7 @@
 # Edit Anything by Segment-Anything
 
+[![HuggingFace space](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)
+
 This is an ongoing project aims to **Edit and Generate Anything** in an image,
 powered by [Segment Anything](https://github.com/facebookresearch/segment-anything), [ControlNet](https://github.com/lllyasviel/ControlNet),
 [BLIP2](https://github.com/salesforce/LAVIS/tree/main/projects/blip2), [Stable Diffusion](https://huggingface.co/spaces/stabilityai/stable-diffusion), etc.
@@ -11,6 +13,8 @@ are very welcomed!
 
 
 # News
+
+2023/04/15 - [Gradio demo on Huggingface](https://huggingface.co/spaces/shgao/EditAnything) is released!
 
 2023/04/14 - New model trained with LAION dataset is released.
 
