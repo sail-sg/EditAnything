@@ -25,10 +25,13 @@ are very welcomed!
 2023/04/09 - We released a pretrained model of StableDiffusion based ControlNet that generate images conditioned by SAM segmentation.
 
 # Keep the layout and Generate your season!
-Human Prompt: "A spring/summer/autumn/winter field."
 <div>
     <img src="images/paint.jpg" height=256  alt="original paint">
     <img src="images/seg.png" height=256  alt="SAM">
+</div>
+
+Human Prompt: "A spring/summer/autumn/winter field."
+<div>
     <img src="images/spring.png" height=256 alt="spring">
     <img src="images/summer.png" height=256 alt="summer">
     <img src="images/autumn.png" height=256 alt="autumn">
