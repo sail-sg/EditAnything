@@ -5,6 +5,8 @@ from cldm.ddim_hacked import DDIMSampler
 from cldm.model import create_model, load_state_dict
 from pytorch_lightning import seed_everything
 from share import *
+import subprocess
+from collections import OrderedDict
 import config
 
 import cv2
@@ -20,8 +22,8 @@ from annotator.util import resize_image, HWC3
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-use_blip = False
-use_gradio = False
+use_blip = True
+use_gradio = True
 
 # Diffusion init using diffusers.
 
@@ -32,25 +34,40 @@ from diffusers.utils import load_image
 import torch
 
 base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-controlnet_path = "shgao/edit-anything-v0-1-1"
+config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
+                           ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
+                          ])
+def obtain_generation_model(controlnet_path):
+    controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+    pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+        base_model_path, controlnet=controlnet, torch_dtype=torch.float16
+    )
+    # speed up diffusion process with faster scheduler and memory optimization
+    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+    # remove following line if xformers is not installed
+    pipe.enable_xformers_memory_efficient_attention()
 
-controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
-pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-    base_model_path, controlnet=controlnet, torch_dtype=torch.float16
-)
-# speed up diffusion process with faster scheduler and memory optimization
-pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
-# remove following line if xformers is not installed
-pipe.enable_xformers_memory_efficient_attention()
-
-# pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
-pipe.to(device)
+    # pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
+    pipe.to(device)
+    return pipe
+global default_controlnet_path
+default_controlnet_path = config_dict['LAION Pretrained(v0-3)']
+pipe = obtain_generation_model(default_controlnet_path)
 
 # Segment-Anything init.
 # pip install git+https://github.com/facebookresearch/segment-anything.git
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
-sam_checkpoint = "../segment-anything/sam_vit_h_4b8939.pth"
+try:
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+except ImportError:
+    print('segment_anything not installed')
+    result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
+    print(f'Install segment_anything {result}')   
+if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
+    result = subprocess.run(['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
+    print(f'Download sam_vit_h_4b8939.pth {result}')   
+sam_checkpoint = "models/sam_vit_h_4b8939.pth"
 model_type = "default"
 sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
 sam.to(device=device)
@@ -100,6 +117,7 @@ def show_anns(anns):
     res[:, :, 0] = map % 256
     res[:, :, 1] = map // 256
     res.astype(np.float32)
+    full_img = Image.fromarray(np.uint8(full_img))
     return full_img, res
 
 
@@ -109,9 +127,21 @@ def get_sam_control(image):
     return full_img, res
 
 
-def process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+def process(condition_model, source_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+
+    input_image = source_image["image"]
+    if mask_image is None:
+        mask_image = source_image["mask"]
+    global default_controlnet_path
+    global pipe
+    print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
+    if default_controlnet_path!=config_dict[condition_model]:
+        print("Change condition model to:", config_dict[condition_model])
+        pipe = obtain_generation_model(config_dict[condition_model])
+        default_controlnet_path = config_dict[condition_model]
+
     with torch.no_grad():
-        if use_blip:
+        if use_blip and (enable_auto_prompt or len(prompt) == 0):
             print("Generating text:")
             blip2_prompt = get_blip2_text(input_image)
             print("Generated text:", blip2_prompt)
@@ -165,7 +195,7 @@ def process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, im
 
 
         results = [x_samples[i] for i in range(num_samples)]
-    return [full_segmask, mask_image] + results
+    return [full_segmask, mask_image] + results, prompt
 
 
 def download_image(url):
@@ -178,7 +208,7 @@ if not use_gradio:
     mask_path = "../data/samples/sa_223750inpaint.png"
     input_image = Image.open(image_path)
     mask_image = Image.open(mask_path)
-
+    enable_auto_prompt = True
     input_image = np.array(input_image, dtype=np.uint8)
     mask_image = np.array(mask_image, dtype=np.uint8)
     prompt = "esplendent sunset sky, red brick wall"
@@ -194,7 +224,7 @@ if not use_gradio:
     seed = -1
     eta = 0.0
 
-    outputs = process(input_image, mask_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+    outputs = process(condition_model, input_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                       detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
 
     image_list = []
@@ -221,12 +251,18 @@ else:
                 "## Edit Anything powered by ControlNet+SAM+BLIP2+Stable Diffusion")
         with gr.Row():
             with gr.Column():
-                input_image = gr.Image(source='upload', type="numpy")
+                source_image = gr.Image(source='upload',label="Image (support sketch)",  type="numpy", tool="sketch")
+                mask_image = gr.Image(source='upload', label="Edit region (Optional)", type="numpy", value=None)
                 prompt = gr.Textbox(label="Prompt")
+                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
                 run_button = gr.Button(label="Run")
-                with gr.Accordion("Advanced options", open=False):
-                    num_samples = gr.Slider(
+                condition_model = gr.Dropdown(choices=list(config_dict.keys()),
+                                            value=list(config_dict.keys())[0],
+                                            label='Model',
+                                            multiselect=False)
+                num_samples = gr.Slider(
                         label="Images", minimum=1, maximum=12, value=1, step=1)
+                with gr.Accordion("Advanced options", open=False):
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
                     strength = gr.Slider(
@@ -248,8 +284,9 @@ else:
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-        ips = [input_image, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+                result_text = gr.Text(label='BLIP2+Human Prompt Text')
+        ips = [condition_model, source_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
 
     block.launch(server_name='0.0.0.0')
