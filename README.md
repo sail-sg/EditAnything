@@ -30,7 +30,7 @@ are very welcomed!
     <img src="images/seg.png" height=256  alt="SAM">
 </div>
 
-Human Prompt: "A spring/summer/autumn/winter field."
+Human Prompt: "A paint of spring/summer/autumn/winter field."
 <div>
     <img src="images/spring.png" height=256 alt="spring">
     <img src="images/summer.png" height=256 alt="summer">
