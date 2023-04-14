@@ -1,13 +1,9 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 from torchvision.utils import save_image
 from PIL import Image
-from cldm.ddim_hacked import DDIMSampler
-from cldm.model import create_model, load_state_dict
 from pytorch_lightning import seed_everything
-from share import *
 import subprocess
 from collections import OrderedDict
-import config
 
 import cv2
 import einops

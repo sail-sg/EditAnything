@@ -3,13 +3,9 @@ from diffusers.utils import load_image
 from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
 from torchvision.utils import save_image
 from PIL import Image
-from cldm.ddim_hacked import DDIMSampler
-from cldm.model import create_model, load_state_dict
 from pytorch_lightning import seed_everything
-from share import *
 import subprocess
 from collections import OrderedDict
-import config
 
 import cv2
 import einops
