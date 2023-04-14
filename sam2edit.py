@@ -51,7 +51,6 @@ def create_demo():
 
     # Segment-Anything init.
     # pip install git+https://github.com/facebookresearch/segment-anything.git
-    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
     try:
         from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
@@ -253,7 +252,7 @@ def create_demo():
                     enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
                     run_button = gr.Button(label="Run")
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                value=list(config_dict.keys())[0],
+                                                value=list(config_dict.keys())[1],
                                                 label='Model',
                                                 multiselect=False)
                     num_samples = gr.Slider(
