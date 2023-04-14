@@ -159,7 +159,7 @@ def process(input_image, prompt, a_prompt, n_prompt, num_samples, image_resoluti
 
 # disable gradio when not using GUI.
 if not use_gradio:
-    image_path = "images/sa_309398.jpg"
+    image_path = "samples/sa_223750.jpg"
     input_image = Image.open(image_path)
     input_image = np.array(input_image, dtype=np.uint8)
     prompt = ""
