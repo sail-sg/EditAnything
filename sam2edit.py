@@ -29,8 +29,9 @@ def create_demo():
     from diffusers.utils import load_image
 
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-    config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
-                            ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
+    config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
+                            ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
+                            # ('LAION Pretrained(v0-3-1)', '../../edit/edit-anything-ckpt-v0-3'),
                             ])
     def obtain_generation_model(controlnet_path):
         controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
@@ -42,11 +43,12 @@ def create_demo():
         # remove following line if xformers is not installed
         pipe.enable_xformers_memory_efficient_attention()
 
-        # pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
-        pipe.to(device)
+        pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
+        # pipe.to(device)
         return pipe
     global default_controlnet_path
-    default_controlnet_path = config_dict['LAION Pretrained(v0-3)']
+    global pipe
+    default_controlnet_path = config_dict['LAION Pretrained(v0-3): Good Face']
     pipe = obtain_generation_model(default_controlnet_path)
 
     # Segment-Anything init.
@@ -58,6 +60,7 @@ def create_demo():
         print('segment_anything not installed')
         result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
         print(f'Install segment_anything {result}')   
+        from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
     if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
         result = subprocess.run(['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
         print(f'Download sam_vit_h_4b8939.pth {result}')   
@@ -77,7 +80,6 @@ def create_demo():
         processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
         blip_model = Blip2ForConditionalGeneration.from_pretrained(
             "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16)
-        blip_model.to(device)
         blip_model.to(device)
 
 
@@ -121,16 +123,21 @@ def create_demo():
         return full_img, res
 
 
-    def process(condition_model, source_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+    def process(condition_model, source_image, enable_all_generate, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         input_image = source_image["image"]
         if mask_image is None:
-            mask_image = source_image["mask"]
+            if enable_all_generate:
+                print("source_image", source_image["mask"].shape, input_image.shape,)
+                print(source_image["mask"].max())
+                mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
+            else:
+                mask_image = source_image["mask"]
         global default_controlnet_path
-        global pipe
         print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
         if default_controlnet_path!=config_dict[condition_model]:
             print("Change condition model to:", config_dict[condition_model])
+            global pipe
             pipe = obtain_generation_model(config_dict[condition_model])
             default_controlnet_path = config_dict[condition_model]
 
@@ -246,18 +253,19 @@ def create_demo():
                     "## Edit Anything")
             with gr.Row():
                 with gr.Column():
-                    source_image = gr.Image(source='upload',label="Image (support sketch)",  type="numpy", tool="sketch")
-                    mask_image = gr.Image(source='upload', label="Edit region (Optional)", type="numpy", value=None)
-                    prompt = gr.Textbox(label="Prompt")
-                    enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
+                    source_image = gr.Image(source='upload',label="Image (Upload an image and cover the region you want to edit with sketch)",  type="numpy", tool="sketch")
+                    enable_all_generate = gr.Checkbox(label='Auto generation on all region.', value=True)
+                    prompt = gr.Textbox(label="Prompt (Text in the expected things of edited region)")
+                    enable_auto_prompt = gr.Checkbox(label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=True)
                     run_button = gr.Button(label="Run")
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
                                                 value=list(config_dict.keys())[1],
                                                 label='Model',
                                                 multiselect=False)
                     num_samples = gr.Slider(
-                            label="Images", minimum=1, maximum=12, value=1, step=1)
+                            label="Images", minimum=1, maximum=12, value=2, step=1)
                     with gr.Accordion("Advanced options", open=False):
+                        mask_image = gr.Image(source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
                         image_resolution = gr.Slider(
                             label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
                         strength = gr.Slider(
@@ -280,7 +288,7 @@ def create_demo():
                     result_gallery = gr.Gallery(
                         label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                     result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, source_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+            ips = [condition_model, source_image, enable_all_generate, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                 detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
             run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         return demo
