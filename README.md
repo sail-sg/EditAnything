@@ -12,7 +12,9 @@ are very welcomed!
 
 
 
-# News
+# News🔥
+
+2023/04/17 - We support different alignment degrees bettween edited parts and the SAM mask, check it out on [DEMO](https://huggingface.co/spaces/shgao/EditAnything)!
 
 2023/04/15 - [Gradio demo on Huggingface](https://huggingface.co/spaces/shgao/EditAnything) is released!
 
