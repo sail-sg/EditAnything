@@ -24,6 +24,7 @@ def create_demo():
     # Diffusion init using diffusers.
 
     # diffusers==0.14.0 required.
+    from diffusers import StableDiffusionInpaintPipeline
     from diffusers import ControlNetModel, UniPCMultistepScheduler
     from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
     from diffusers.utils import load_image
@@ -31,13 +32,19 @@ def create_demo():
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
     config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
                             ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
-                            # ('LAION Pretrained(v0-3-1)', '../../edit/edit-anything-ckpt-v0-3'),
+                            ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
                             ])
     def obtain_generation_model(controlnet_path):
-        controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16
-        )
+        if controlnet_path=='stabilityai/stable-diffusion-2-inpainting':
+            pipe = StableDiffusionInpaintPipeline.from_pretrained(
+                "stabilityai/stable-diffusion-2-inpainting",
+                torch_dtype=torch.float16,
+            )
+        else:
+            controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+            pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+                base_model_path, controlnet=controlnet, torch_dtype=torch.float16
+            )
         # speed up diffusion process with faster scheduler and memory optimization
         pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
         # remove following line if xformers is not installed
@@ -79,8 +86,7 @@ def create_demo():
 
         processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
         blip_model = Blip2ForConditionalGeneration.from_pretrained(
-            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16)
-        blip_model.to(device)
+            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16, device_map="auto")
 
 
     def get_blip2_text(image):
@@ -140,6 +146,7 @@ def create_demo():
             global pipe
             pipe = obtain_generation_model(config_dict[condition_model])
             default_controlnet_path = config_dict[condition_model]
+            torch.cuda.empty_cache()
 
         with torch.no_grad():
             if use_blip and (enable_auto_prompt or len(prompt) == 0):
@@ -181,18 +188,31 @@ def create_demo():
                 seed = random.randint(0, 65535)
             seed_everything(seed)
             generator = torch.manual_seed(seed)
-            x_samples = pipe(
-                image=img,
-                mask_image=mask_image,
-                prompt=[prompt + ', ' + a_prompt] * num_samples,
-                negative_prompt=[n_prompt] * num_samples,  
-                num_images_per_prompt=num_samples,
-                num_inference_steps=ddim_steps, 
-                generator=generator, 
-                controlnet_conditioning_image=control.type(torch.float16),
-                height=H,
-                width=W,
-            ).images
+            if condition_model=='SD Inpainting: Not keep position':
+                x_samples = pipe(
+                    image=img,
+                    mask_image=mask_image,
+                    prompt=[prompt + ', ' + a_prompt] * num_samples,
+                    negative_prompt=[n_prompt] * num_samples,  
+                    num_images_per_prompt=num_samples,
+                    num_inference_steps=ddim_steps, 
+                    generator=generator, 
+                    height=H,
+                    width=W,
+                ).images
+            else:
+                x_samples = pipe(
+                    image=img,
+                    mask_image=mask_image,
+                    prompt=[prompt + ', ' + a_prompt] * num_samples,
+                    negative_prompt=[n_prompt] * num_samples,  
+                    num_images_per_prompt=num_samples,
+                    num_inference_steps=ddim_steps, 
+                    generator=generator, 
+                    controlnet_conditioning_image=control.type(torch.float16),
+                    height=H,
+                    width=W,
+                ).images
 
 
             results = [x_samples[i] for i in range(num_samples)]
@@ -254,7 +274,7 @@ def create_demo():
             with gr.Row():
                 with gr.Column():
                     source_image = gr.Image(source='upload',label="Image (Upload an image and cover the region you want to edit with sketch)",  type="numpy", tool="sketch")
-                    enable_all_generate = gr.Checkbox(label='Auto generation on all region.', value=True)
+                    enable_all_generate = gr.Checkbox(label='Auto generation on all region.', value=False)
                     prompt = gr.Textbox(label="Prompt (Text in the expected things of edited region)")
                     enable_auto_prompt = gr.Checkbox(label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=True)
                     run_button = gr.Button(label="Run")
@@ -274,7 +294,7 @@ def create_demo():
                         detect_resolution = gr.Slider(
                             label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
                         ddim_steps = gr.Slider(
-                            label="Steps", minimum=1, maximum=100, value=20, step=1)
+                            label="Steps", minimum=1, maximum=100, value=30, step=1)
                         scale = gr.Slider(
                             label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
                         seed = gr.Slider(label="Seed", minimum=-1,
