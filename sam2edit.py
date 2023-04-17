@@ -129,7 +129,7 @@ def create_demo():
         return full_img, res
 
 
-    def process(condition_model, source_image, enable_all_generate, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+    def process(condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         input_image = source_image["image"]
         if mask_image is None:
@@ -212,6 +212,7 @@ def create_demo():
                     controlnet_conditioning_image=control.type(torch.float16),
                     height=H,
                     width=W,
+                    controlnet_conditioning_scale=control_scale,
                 ).images
 
 
@@ -277,6 +278,8 @@ def create_demo():
                     enable_all_generate = gr.Checkbox(label='Auto generation on all region.', value=False)
                     prompt = gr.Textbox(label="Prompt (Text in the expected things of edited region)")
                     enable_auto_prompt = gr.Checkbox(label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=True)
+                    control_scale = gr.Slider(
+                            label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
                     run_button = gr.Button(label="Run")
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
                                                 value=list(config_dict.keys())[1],
@@ -308,7 +311,7 @@ def create_demo():
                     result_gallery = gr.Gallery(
                         label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                     result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, source_image, enable_all_generate, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+            ips = [condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                 detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
             run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         return demo
