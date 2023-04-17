@@ -14,6 +14,8 @@ are very welcomed!
 
 # News🔥
 
+2023/04/17 - We support the SAM mask to semantic segmentatio mask.
+
 2023/04/17 - We support different alignment degrees bettween edited parts and the SAM mask, check it out on [DEMO](https://huggingface.co/spaces/shgao/EditAnything)!
 
 2023/04/15 - [Gradio demo on Huggingface](https://huggingface.co/spaces/shgao/EditAnything) is released!
@@ -50,6 +52,8 @@ Highlight features:
 - Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
 - category-unrelated SAM mask enables more forms of editing and generation.
 - BLIP2 text generation enables text guidance-free control.
+
+
 
 
 ## Edit Specific Thing by Text-Grounding and Segment-Anything
@@ -100,6 +104,12 @@ BLIP2 Prompt: "a black drone flying in the blue sky"
 Note: Due to the privacy protection in the SAM dataset,
 faces in generated images are also blurred. We are training new models
 with unblurred images to solve this.
+
+## Generate semantic labels for each SAM mask.
+![p](images/sample_semantic.jpg)
+```
+python sam2semantic.py
+```
 
 
 # Ongoing
