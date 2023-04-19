@@ -14,7 +14,7 @@ are very welcomed!
 
 # News🔥
 
-2023/04/17 - We support the SAM mask to semantic segmentatio mask.
+2023/04/17 - We support the SAM mask to semantic segmentation mask.
 
 2023/04/17 - We support different alignment degrees bettween edited parts and the SAM mask, check it out on [DEMO](https://huggingface.co/spaces/shgao/EditAnything)!
 
@@ -32,7 +32,21 @@ are very welcomed!
 
 2023/04/09 - We released a pretrained model of StableDiffusion based ControlNet that generate images conditioned by SAM segmentation.
 
-# Keep the layout and Generate your season!
+
+
+# Features
+
+Highlight features:
+- Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
+- category-unrelated SAM mask enables more forms of editing and generation.
+- BLIP2 text generation enables text guidance-free control.
+
+**Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
+
+## Image Editing with layout alignment control.
+<img width="1040" alt="image" src="https://user-images.githubusercontent.com/20515144/233106460-14eb0e5a-cbc1-457d-aad3-a56796f7bee1.png">
+
+## Keep the layout and Generate your season!
 <div>
     <img src="images/paint.jpg" height=256  alt="original paint">
     <img src="images/seg.png" height=256  alt="SAM">
@@ -45,16 +59,6 @@ Human Prompt: "A paint of spring/summer/autumn/winter field."
     <img src="images/autumn.png" height=256 alt="autumn">
     <img src="images/winter.png" height=256 alt="winter">
 </div>
-
-# Features
-
-Highlight features:
-- Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
-- category-unrelated SAM mask enables more forms of editing and generation.
-- BLIP2 text generation enables text guidance-free control.
-
-
-
 
 ## Edit Specific Thing by Text-Grounding and Segment-Anything
 ### Editing by Text-guided Part Mask
