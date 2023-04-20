@@ -47,7 +47,7 @@ Highlight features:
 
 ## Customized editing with layout alignment control.
 <img width="1392" alt="image" src="https://user-images.githubusercontent.com/20515144/233339751-2c9e4ec8-e884-4c0e-95de-42512eccee85.png">
-EditAnything+DreamBooth (Train a customized DreamBooth Model and replace the base model in sam2edit.py with the trained model.)
+EditAnything+DreamBooth (Train a customized DreamBooth Model with `tools/train_dreambooth_inpaint.py` and replace the base model in `sam2edit.py` with the trained model.)
 
 ## Image Editing with layout alignment control.
 <img width="1040" alt="image" src="https://user-images.githubusercontent.com/20515144/233106460-14eb0e5a-cbc1-457d-aad3-a56796f7bee1.png">
