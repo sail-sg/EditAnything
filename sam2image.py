@@ -29,6 +29,7 @@ def create_demo():
 
     config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
                                ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
+                               ('LAION Pretrained(v0-4)', 'shgao/edit-anything-v0-4-sd21'),
                                ])
 
     def obtain_generation_model(controlnet_path):
@@ -46,7 +47,7 @@ def create_demo():
         return pipe
 
     global default_controlnet_path
-    default_controlnet_path = config_dict['LAION Pretrained(v0-3)']
+    default_controlnet_path = config_dict['LAION Pretrained(v0-4)']
     pipe = obtain_generation_model(default_controlnet_path)
 
     # Segment-Anything init.

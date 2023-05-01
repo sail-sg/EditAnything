@@ -14,6 +14,8 @@ are very welcomed!
 
 # News🔥
 
+2023/05/01 - Models V0.4 based on Stable Diffusion 1.5/2.1 are released. New models are trained with more data and iterations.<span id="# Model Zoo">[ModelZoo]</span>
+
 2023/04/20 - We support the Customized editing with DreamBooth.
 
 2023/04/17 - We support the SAM mask to semantic segmentation mask.
@@ -201,6 +203,7 @@ have GUI to run the gradio demo.
 |-------|----------|---------------|
 |SAM Pretrained(v0-1) | Good Nature Sense | [shgao/edit-anything-v0-1-1](https://huggingface.co/shgao/edit-anything-v0-1-1) |
 |LAION Pretrained(v0-3) | Good Face        | [shgao/edit-anything-v0-3](https://huggingface.co/shgao/edit-anything-v0-3)
+|LAION Pretrained(v0-4) | Support StableDiffusion 1.5/2.1, More training data and iterations, Good Face        | [shgao/edit-anything-v0-4-sd15](https://huggingface.co/shgao/edit-anything-v0-4-sd15) [shgao/edit-anything-v0-4-sd21](https://huggingface.co/shgao/edit-anything-v0-4-sd21)
 
 
 # Training

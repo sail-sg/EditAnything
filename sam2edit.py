@@ -30,8 +30,10 @@ def create_demo():
     from diffusers.utils import load_image
 
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-    config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
+    config_dict = OrderedDict([
+                            ('LAION Pretrained(v0-4): Good Face', 'shgao/edit-anything-v0-4-sd21'),
                             ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
+                            ('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
                             ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
                             ])
     def obtain_generation_model(controlnet_path):
@@ -55,7 +57,7 @@ def create_demo():
         return pipe
     global default_controlnet_path
     global pipe
-    default_controlnet_path = config_dict['LAION Pretrained(v0-3): Good Face']
+    default_controlnet_path = config_dict['LAION Pretrained(v0-4): Good Face']
     pipe = obtain_generation_model(default_controlnet_path)
 
     # Segment-Anything init.
