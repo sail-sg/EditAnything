@@ -14,8 +14,7 @@ are very welcomed!
 
 # News🔥
 
-2023/05/01 - Models V0.4 based on Stable Diffusion 1.5/2.1 are released. New models are trained with more data and iterations.<span id="# Model Zoo">[ModelZoo]</span>
-
+2023/05/01 - Models V0.4 based on Stable Diffusion 1.5/2.1 are released. New models are trained with more data and iterations.[Model Zoo](https://github.com/sail-sg/EditAnything#model-zoo)
 2023/04/20 - We support the Customized editing with DreamBooth.
 
 2023/04/17 - We support the SAM mask to semantic segmentation mask.
