@@ -417,7 +417,7 @@ def create_demo(base_model_path="../chilloutmix_NiPrunedFp32Fix", lora_model_pat
                 run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
                                                 value=list(
-                                                    config_dict.keys())[1],
+                                                    config_dict.keys())[0],
                                                 label='Model',
                                                 multiselect=False)
                 num_samples = gr.Slider(

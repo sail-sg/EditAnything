@@ -25,7 +25,7 @@ from utils.controlnet import ControlNetModelInpaint
 from utils.stable_diffusion_controlnet_inpaint_v2 import StableDiffusionControlNetInpaintPipeline
 
 config_dict = OrderedDict([
-    ('LAION Pretrained(v0-4)', '../../edit/laion-sd15-inpaint-3w'),
+    ('LAION Pretrained(v0-4)', '../../edit/laion-sd15-inpaint-4w'),
 ])
 
 def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):

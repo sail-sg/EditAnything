@@ -9,7 +9,7 @@ def create_demo(process):
 
     examples = [
         ["1man, muscle,full body, vest, short straight hair, glasses, Gym, barbells, dumbbells, treadmills, boxing rings, squat racks, plates, dumbbell racks soft lighting, masterpiece, best quality, 8k uhd, film grain, Fujifilm XT3 photorealistic painting art by midjourney and greg rutkowski <lora:asianmale_v10:0.6>", "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck", 6],
-        ["1man, 25 years- old, full body, wearing long-sleeve white shirt and tie, muscular rand black suit, glasses, drinking coffee, soft lighting, masterpiece, best quality, 8k uhd, dslr, film grain, Fujifilm XT3 photorealistic painting art by midjourney and greg rutkowski <lora:asianmale_v10:0.6> <lora:uncutPenisLora_v10:0.6>","(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",6],
+        ["1man, 25 years- old, full body, wearing long-sleeve white shirt and tie, muscular rand black suit, soft lighting, masterpiece, best quality, 8k uhd, dslr, film grain, Fujifilm XT3 photorealistic painting art by midjourney and greg rutkowski <lora:asianmale_v10:0.6> <lora:uncutPenisLora_v10:0.6>","(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",6],
     ]
 
     print("The GUI is not fully tested yet. Please open an issue if you find bugs.")
@@ -32,21 +32,23 @@ def create_demo(process):
                     label="Prompt (Text in the expected things of edited region)")
                 enable_auto_prompt = gr.Checkbox(
                     label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=False)
-                control_scale = gr.Slider(
-                    label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
-                run_button = gr.Button(label="Run")
-                condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                value=list(
-                                                    config_dict.keys())[0],
-                                                label='Model',
-                                                multiselect=False)
-                num_samples = gr.Slider(
-                    label="Images", minimum=1, maximum=12, value=2, step=1)
                 a_prompt = gr.Textbox(
                     label="Added Prompt", value='best quality, extremely detailed')
                 n_prompt = gr.Textbox(label="Negative Prompt",
                                         value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+                control_scale = gr.Slider(
+                    label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
+                run_button = gr.Button(label="Run")
+                num_samples = gr.Slider(
+                    label="Images", minimum=1, maximum=12, value=2, step=1)
+                seed = gr.Slider(label="Seed", minimum=-1,
+                                    maximum=2147483647, step=1, randomize=True)
                 with gr.Accordion("Advanced options", open=False):
+                    condition_model = gr.Dropdown(choices=list(config_dict.keys()),
+                                                    value=list(
+                                                        config_dict.keys())[0],
+                                                    label='Model',
+                                                    multiselect=False)
                     mask_image = gr.Image(
                         source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
                     image_resolution = gr.Slider(
@@ -61,8 +63,6 @@ def create_demo(process):
                         label="Steps", minimum=1, maximum=100, value=30, step=1)
                     scale = gr.Slider(
                         label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                    seed = gr.Slider(label="Seed", minimum=-1,
-                                        maximum=2147483647, step=1, randomize=True)
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
             with gr.Column():
                 result_gallery = gr.Gallery(
@@ -80,6 +80,7 @@ def create_demo(process):
         with gr.Row():
             gr.Markdown(WARNING_INFO)
     return demo
+
 
 
 if __name__ == '__main__':

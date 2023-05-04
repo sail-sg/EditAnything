@@ -44,6 +44,8 @@ def create_demo(process):
                 run_button = gr.Button(label="Run")
                 num_samples = gr.Slider(
                     label="Images", minimum=1, maximum=12, value=2, step=1)
+                seed = gr.Slider(label="Seed", minimum=-1,
+                                    maximum=2147483647, step=1, randomize=True)
                 with gr.Accordion("Advanced options", open=False):
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
                                                     value=list(
@@ -64,8 +66,6 @@ def create_demo(process):
                         label="Steps", minimum=1, maximum=100, value=30, step=1)
                     scale = gr.Slider(
                         label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                    seed = gr.Slider(label="Seed", minimum=-1,
-                                        maximum=2147483647, step=1, randomize=True)
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
             with gr.Column():
                 result_gallery = gr.Gallery(
