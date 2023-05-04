@@ -16,6 +16,150 @@ import requests
 from io import BytesIO
 from annotator.util import resize_image, HWC3
 
+import torch
+from safetensors.torch import load_file
+from collections import defaultdict
+def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
+    LORA_PREFIX_UNET = "lora_unet"
+    LORA_PREFIX_TEXT_ENCODER = "lora_te"
+    # load LoRA weight from .safetensors
+    if isinstance(checkpoint_path, str):
+
+        state_dict = load_file(checkpoint_path, device=device)
+
+        updates = defaultdict(dict)
+        for key, value in state_dict.items():
+            # it is suggested to print out the key, it usually will be something like below
+            # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
+
+            layer, elem = key.split('.', 1)
+            updates[layer][elem] = value
+
+        # directly update weight in diffusers model
+        for layer, elems in updates.items():
+
+            if "text" in layer:
+                layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                curr_layer = pipeline.text_encoder
+            else:
+                layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                curr_layer = pipeline.unet
+
+            # find the target layer
+            temp_name = layer_infos.pop(0)
+            while len(layer_infos) > -1:
+                try:
+                    curr_layer = curr_layer.__getattr__(temp_name)
+                    if len(layer_infos) > 0:
+                        temp_name = layer_infos.pop(0)
+                    elif len(layer_infos) == 0:
+                        break
+                except Exception:
+                    if len(temp_name) > 0:
+                        temp_name += "_" + layer_infos.pop(0)
+                    else:
+                        temp_name = layer_infos.pop(0)
+
+            # get elements for this layer
+            weight_up = elems['lora_up.weight'].to(dtype)
+            weight_down = elems['lora_down.weight'].to(dtype)
+            alpha = elems['alpha']
+            if alpha:
+                alpha = alpha.item() / weight_up.shape[1]
+            else:
+                alpha = 1.0
+
+            # update weight
+            if len(weight_up.shape) == 4:
+                curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
+            else:
+                curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
+    else:
+        for ckptpath in checkpoint_path:
+            state_dict = load_file(ckptpath, device=device)
+
+            updates = defaultdict(dict)
+            for key, value in state_dict.items():
+                # it is suggested to print out the key, it usually will be something like below
+                # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
+
+                layer, elem = key.split('.', 1)
+                updates[layer][elem] = value
+
+            # directly update weight in diffusers model
+            for layer, elems in updates.items():
+                print(layer)
+                if "text" in layer:
+                    layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                    curr_layer = pipeline.text_encoder
+                else:
+                    layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                    curr_layer = pipeline.unet
+
+                # find the target layer
+                temp_name = layer_infos.pop(0)
+                while len(layer_infos) > -1:
+                    try:
+                        curr_layer = curr_layer.__getattr__(temp_name)
+                        if len(layer_infos) > 0:
+                            temp_name = layer_infos.pop(0)
+                        elif len(layer_infos) == 0:
+                            break
+                    except Exception:
+                        if len(temp_name) > 0:
+                            temp_name += "_" + layer_infos.pop(0)
+                        else:
+                            temp_name = layer_infos.pop(0)
+
+                # get elements for this layer
+                weight_up = elems['lora_up.weight'].to(dtype)
+                weight_down = elems['lora_down.weight'].to(dtype)
+                alpha = elems['alpha']
+                if alpha:
+                    alpha = alpha.item() / weight_up.shape[1]
+                else:
+                    alpha = 1.0
+
+                # update weight
+                print(curr_layer.weight.data.shape, weight_up.shape, weight_down.shape)
+                if len(weight_up.shape) == 4:
+                    curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
+                else:
+                    curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
+    return pipeline
+
+# import torch
+# from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler,ModelMixin
+# from io import BytesIO
+# from PIL import Image
+# import torch.multiprocessing as mp
+# import Loras
+# controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_openpose", torch_dtype=torch.float16)
+# pipe = StableDiffusionControlNetPipeline.from_pretrained(
+#   "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16,safety_checker=None, requires_safety_checker=False,
+# ).to("cuda")
+# pipe=Loras.load_lora_weights(pipe, ['mngstle.safetensors','galgadot.safetensors'],1.0,'cuda',torch.float16)
+# pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+
+# pipe.enable_xformers_memory_efficient_attention()
+# pipe.enable_model_cpu_offload()
+# buffer=open('gpose.png', 'rb')
+# buffer.seek(0)
+# image_bytes = buffer.read()
+# images = Image.open(BytesIO(image_bytes))
+# generator = torch.manual_seed(1)
+# prompt="withLora(galgadot,1), manga, intricate, sharp focus, illustration, highly detailed, digital painting, concept art, matte, masterpiece, 8k, art by withLora(mngstle,1), black and white, monochrome"
+# n_prompt="nsfw+, out of frame, multiple people, petite, loli, side view, profile, lowres, (bad anatomy, (bad hands)1.1)+, text, tattoo+, error, missing fingers, extra digit, fewer digits, cropped, worst quality, many people+++, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name,weird colors, (cartoon, 3d, bad art, poorly drawn, close up, (blurry)1.5)+, (disfigured, deformed, (extra limbs)1.5)+"
+# fimage=pipe(
+#     prompt,
+#     images,
+#     negative_prompt=n_prompt,
+#     num_inference_steps=20,
+#     generator=generator,
+# )
+# fimage = fimage.images[0]
+# fimage.save('result.png', format='PNG')
+
 def create_demo():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_blip = True
@@ -30,8 +174,13 @@ def create_demo():
     from diffusers.utils import load_image
 
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
+    #base_model_path = "naonovn/chilloutmix_NiPrunedFp32Fix"
+
     # base_model_path = "../save-model"
-    # base_model_path = "../save-model-chang"
+    # lora_model_path = "../save-model-chang/"
+    lora_model_path = "../save-model-pose/"
+    # lora_model_path = "../40806/thnos"
+
     config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
                             ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
                             ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
@@ -47,6 +196,9 @@ def create_demo():
             pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
                 base_model_path, controlnet=controlnet, torch_dtype=torch.float16
             )
+        # pipe=load_lora_weights(pipe, [lora_model_path],1.0,'cpu',torch.float32)
+        pipe.unet.load_attn_procs(lora_model_path)
+        # pipe.load_lora_weights(lora_model_path) #incoming new diffusers version
         # speed up diffusion process with faster scheduler and memory optimization
         pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
         # remove following line if xformers is not installed
@@ -58,6 +210,8 @@ def create_demo():
     global default_controlnet_path
     global pipe
     default_controlnet_path = config_dict['LAION Pretrained(v0-3): Good Face']
+    # default_controlnet_path = config_dict['SD Inpainting: Not keep position']
+    
     pipe = obtain_generation_model(default_controlnet_path)
 
     # Segment-Anything init.

@@ -25,8 +25,8 @@ def create_demo():
     # Diffusion init using diffusers.
     # diffusers==0.14.0 required.
 
-    base_model_path = "stabilityai/stable-diffusion-2-1"
-
+    # base_model_path = "stabilityai/stable-diffusion-2-1"
+    base_model_path = "../dreambooth-concept"
     config_dict = OrderedDict([('SAM Pretrained(v0-1)', 'shgao/edit-anything-v0-1-1'),
                                ('LAION Pretrained(v0-3)', 'shgao/edit-anything-v0-3'),
                                ])

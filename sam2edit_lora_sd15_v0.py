@@ -4,7 +4,7 @@ from PIL import Image
 from pytorch_lightning import seed_everything
 import subprocess
 from collections import OrderedDict
-
+import re
 import cv2
 import einops
 import gradio as gr
@@ -15,6 +15,158 @@ import os
 import requests
 from io import BytesIO
 from annotator.util import resize_image, HWC3
+
+import torch
+from safetensors.torch import load_file
+from collections import defaultdict
+from diffusers import StableDiffusionControlNetPipeline
+
+def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
+    # https://github.com/huggingface/diffusers/issues/2136
+    """ Get pipeline embeds for prompts bigger than the maxlength of the pipe
+    :param pipeline:
+    :param prompt:
+    :param negative_prompt:
+    :param device:
+    :return:
+    """
+    max_length = pipeline.tokenizer.model_max_length
+
+    # simple way to determine length of tokens
+    count_prompt = len(re.split(r', ', prompt))
+    count_negative_prompt = len(re.split(r', ', negative_prompt))
+    # count_prompt = len(prompt.split(","))
+    # count_negative_prompt = len(negative_prompt.split(","))
+
+    # create the tensor based on which prompt is longer
+    if count_prompt >= count_negative_prompt:
+        input_ids = pipeline.tokenizer(prompt, return_tensors="pt", truncation=False).input_ids.to(device)
+        shape_max_length = input_ids.shape[-1]
+        negative_ids = pipeline.tokenizer(negative_prompt, truncation=False, padding="max_length",
+                                          max_length=shape_max_length, return_tensors="pt").input_ids.to(device)
+
+    else:
+        negative_ids = pipeline.tokenizer(negative_prompt, return_tensors="pt", truncation=False).input_ids.to(device)
+        shape_max_length = negative_ids.shape[-1]
+        input_ids = pipeline.tokenizer(prompt, return_tensors="pt", truncation=False, padding="max_length",
+                                       max_length=shape_max_length).input_ids.to(device)
+
+    concat_embeds = []
+    neg_embeds = []
+    for i in range(0, shape_max_length, max_length):
+        concat_embeds.append(pipeline.text_encoder(input_ids[:, i: i + max_length])[0])
+        neg_embeds.append(pipeline.text_encoder(negative_ids[:, i: i + max_length])[0])
+
+    return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
+
+def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
+    LORA_PREFIX_UNET = "lora_unet"
+    LORA_PREFIX_TEXT_ENCODER = "lora_te"
+    # load LoRA weight from .safetensors
+    if isinstance(checkpoint_path, str):
+
+        state_dict = load_file(checkpoint_path, device=device)
+
+        updates = defaultdict(dict)
+        for key, value in state_dict.items():
+            # it is suggested to print out the key, it usually will be something like below
+            # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
+
+            layer, elem = key.split('.', 1)
+            updates[layer][elem] = value
+
+        # directly update weight in diffusers model
+        for layer, elems in updates.items():
+
+            if "text" in layer:
+                layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                curr_layer = pipeline.text_encoder
+            else:
+                layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                curr_layer = pipeline.unet
+
+            # find the target layer
+            temp_name = layer_infos.pop(0)
+            while len(layer_infos) > -1:
+                try:
+                    curr_layer = curr_layer.__getattr__(temp_name)
+                    if len(layer_infos) > 0:
+                        temp_name = layer_infos.pop(0)
+                    elif len(layer_infos) == 0:
+                        break
+                except Exception:
+                    if len(temp_name) > 0:
+                        temp_name += "_" + layer_infos.pop(0)
+                    else:
+                        temp_name = layer_infos.pop(0)
+
+            # get elements for this layer
+            weight_up = elems['lora_up.weight'].to(dtype)
+            weight_down = elems['lora_down.weight'].to(dtype)
+            alpha = elems['alpha']
+            if alpha:
+                alpha = alpha.item() / weight_up.shape[1]
+            else:
+                alpha = 1.0
+
+            # update weight
+            if len(weight_up.shape) == 4:
+                curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
+            else:
+                curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
+    else:
+        for ckptpath in checkpoint_path:
+            state_dict = load_file(ckptpath, device=device)
+
+            updates = defaultdict(dict)
+            for key, value in state_dict.items():
+                # it is suggested to print out the key, it usually will be something like below
+                # "lora_te_text_model_encoder_layers_0_self_attn_k_proj.lora_down.weight"
+
+                layer, elem = key.split('.', 1)
+                updates[layer][elem] = value
+
+            # directly update weight in diffusers model
+            for layer, elems in updates.items():
+                print(layer)
+                if "text" in layer:
+                    layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                    curr_layer = pipeline.text_encoder
+                else:
+                    layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                    curr_layer = pipeline.unet
+
+                # find the target layer
+                temp_name = layer_infos.pop(0)
+                while len(layer_infos) > -1:
+                    try:
+                        curr_layer = curr_layer.__getattr__(temp_name)
+                        if len(layer_infos) > 0:
+                            temp_name = layer_infos.pop(0)
+                        elif len(layer_infos) == 0:
+                            break
+                    except Exception:
+                        if len(temp_name) > 0:
+                            temp_name += "_" + layer_infos.pop(0)
+                        else:
+                            temp_name = layer_infos.pop(0)
+
+                # get elements for this layer
+                weight_up = elems['lora_up.weight'].to(dtype)
+                weight_down = elems['lora_down.weight'].to(dtype)
+                alpha = elems['alpha']
+                if alpha:
+                    alpha = alpha.item() / weight_up.shape[1]
+                else:
+                    alpha = 1.0
+
+                # update weight
+                print(curr_layer.weight.data.shape, weight_up.shape, weight_down.shape)
+                if len(weight_up.shape) == 4:
+                    curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
+                else:
+                    curr_layer.weight.data += multiplier * alpha * torch.mm(weight_up, weight_down)
+    return pipeline
 
 def create_demo():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -29,17 +181,24 @@ def create_demo():
     from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
     from diffusers.utils import load_image
 
-    base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-    # base_model_path = "../save-model"
-    # base_model_path = "../save-model-chang"
+    # base_model_path = "runwayml/stable-diffusion-inpainting"
+    base_model_path = "../chilloutmix_NiPrunedFp32Fix"
+    lora_model_path = "../40806/mix4"
+
     config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
-                            ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
-                            ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
+                            ('LAION Pretrained(v0-3): Good Face', '../../edit/laion-sd15'),
+                            ('SD Inpainting: Not keep position', 'runwayml/stable-diffusion-inpainting'),
+                            ('Geneation only for SD15', '../../edit/laion-sd15')
                             ])
-    def obtain_generation_model(controlnet_path):
-        if controlnet_path=='stabilityai/stable-diffusion-2-inpainting':
+    def obtain_generation_model(controlnet_path, generation_only=True):
+        if generation_only:
+            controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+            pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                base_model_path, controlnet=controlnet, torch_dtype=torch.float16
+            )
+        elif controlnet_path=='runwayml/stable-diffusion-inpainting':
             pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                "stabilityai/stable-diffusion-2-inpainting",
+                "runwayml/stable-diffusion-inpainting",
                 torch_dtype=torch.float16,
             )
         else:
@@ -47,6 +206,9 @@ def create_demo():
             pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
                 base_model_path, controlnet=controlnet, torch_dtype=torch.float16
             )
+        pipe=load_lora_weights(pipe, [lora_model_path],1.0,'cpu',torch.float32)
+        #pipe.unet.load_attn_procs(lora_model_path)
+        # pipe.load_lora_weights(lora_model_path) #incoming new diffusers version
         # speed up diffusion process with faster scheduler and memory optimization
         pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
         # remove following line if xformers is not installed
@@ -57,7 +219,9 @@ def create_demo():
         return pipe
     global default_controlnet_path
     global pipe
-    default_controlnet_path = config_dict['LAION Pretrained(v0-3): Good Face']
+    default_controlnet_path = config_dict['Geneation only for SD15']
+    # default_controlnet_path = config_dict['SD Inpainting: Not keep position']
+    
     pipe = obtain_generation_model(default_controlnet_path)
 
     # Segment-Anything init.
@@ -190,24 +354,49 @@ def create_demo():
                 seed = random.randint(0, 65535)
             seed_everything(seed)
             generator = torch.manual_seed(seed)
+            # postive_prompt=[prompt + ', ' + a_prompt] * num_samples
+            # negative_prompt=[n_prompt] * num_samples
+            postive_prompt=prompt + ', ' + a_prompt
+            negative_prompt=n_prompt
+            prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(pipe, postive_prompt, negative_prompt, "cuda")
+            print(prompt_embeds.shape)
+            prompt_embeds=torch.cat([prompt_embeds] * num_samples, dim=0)
+            negative_prompt_embeds=torch.cat([negative_prompt_embeds] * num_samples, dim=0)
             if condition_model=='SD Inpainting: Not keep position':
                 x_samples = pipe(
                     image=img,
                     mask_image=mask_image,
-                    prompt=[prompt + ', ' + a_prompt] * num_samples,
-                    negative_prompt=[n_prompt] * num_samples,  
+                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                    # prompt=[prompt + ', ' + a_prompt] * num_samples,
+                    # negative_prompt=[n_prompt] * num_samples,  
                     num_images_per_prompt=num_samples,
                     num_inference_steps=ddim_steps, 
                     generator=generator, 
                     height=H,
                     width=W,
                 ).images
+            elif condition_model=='Geneation only for SD15':
+                pipe.safety_checker = lambda images, clip_input: (images, False)
+                print(type(control))
+                x_samples = pipe(
+                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                    # prompt=[prompt + ', ' + a_prompt] * num_samples,
+                    # negative_prompt=[n_prompt] * num_samples,
+                    num_images_per_prompt=num_samples,
+                    num_inference_steps=ddim_steps,
+                    generator=generator,
+                    height=H,
+                    width=W,
+                    image=control.type(torch.float16),
+                    controlnet_conditioning_scale=float(control_scale),
+                ).images
             else:
                 x_samples = pipe(
                     image=img,
                     mask_image=mask_image,
-                    prompt=[prompt + ', ' + a_prompt] * num_samples,
-                    negative_prompt=[n_prompt] * num_samples,  
+                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                    # prompt=[prompt + ', ' + a_prompt] * num_samples,
+                    # negative_prompt=[n_prompt] * num_samples,  
                     num_images_per_prompt=num_samples,
                     num_inference_steps=ddim_steps, 
                     generator=generator, 
@@ -289,6 +478,10 @@ def create_demo():
                                                 multiselect=False)
                     num_samples = gr.Slider(
                             label="Images", minimum=1, maximum=12, value=2, step=1)
+                    a_prompt = gr.Textbox(
+                        label="Added Prompt", value='best quality, extremely detailed')
+                    n_prompt = gr.Textbox(label="Negative Prompt",
+                                        value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
                     with gr.Accordion("Advanced options", open=False):
                         mask_image = gr.Image(source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
                         image_resolution = gr.Slider(
@@ -305,10 +498,6 @@ def create_demo():
                         seed = gr.Slider(label="Seed", minimum=-1,
                                         maximum=2147483647, step=1, randomize=True)
                         eta = gr.Number(label="eta (DDIM)", value=0.0)
-                        a_prompt = gr.Textbox(
-                            label="Added Prompt", value='best quality, extremely detailed')
-                        n_prompt = gr.Textbox(label="Negative Prompt",
-                                            value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
                 with gr.Column():
                     result_gallery = gr.Gallery(
                         label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')

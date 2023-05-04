@@ -33,5 +33,5 @@ dependencies:
       - safetensors==0.2.7
       - basicsr==1.4.2
       - diffusers==0.14.0
-      - accelerate==0.14.0
+      - accelerate==0.17.0
       - transformers==4.27.4

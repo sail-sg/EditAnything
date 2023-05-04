@@ -1061,14 +1061,14 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
                         callback(i, t, latents)
-                if self.unet.config.in_channels==4:
-                    # masking for non-inpainting models
-                    init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, t)
-                    latents = (init_latents_proper * mask_image) + (latents * (1 - mask_image))
+                # if self.unet.config.in_channels==4:
+                #     # masking for non-inpainting models
+                #     init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, t)
+                #     latents = (init_latents_proper * mask_image) + (latents * (1 - mask_image))
 
-            if self.unet.config.in_channels==4:
-                # fill the unmasked part with original image
-                latents = (init_masked_image_latents * mask_image) + (latents * (1 - mask_image))
+            # if self.unet.config.in_channels==4:
+            #     # fill the unmasked part with original image
+            #     latents = (init_masked_image_latents * mask_image) + (latents * (1 - mask_image))
 
         # If we do sequential model offloading, let's offload unet and controlnet
         # manually for max memory savings
