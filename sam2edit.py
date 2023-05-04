@@ -26,14 +26,15 @@ def create_demo():
     # diffusers==0.14.0 required.
     from diffusers import StableDiffusionInpaintPipeline
     from diffusers import ControlNetModel, UniPCMultistepScheduler
-    from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
+    from utils.stable_diffusion_controlnet_inpaint_v3 import StableDiffusionControlNetInpaintPipeline
     from diffusers.utils import load_image
 
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-    config_dict = OrderedDict([
+    # base_model_path = "../save-model"
+    # base_model_path = "../save-model-chang"
+    config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
                             ('LAION Pretrained(v0-4): Good Face', 'shgao/edit-anything-v0-4-sd21'),
                             ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
-                            ('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
                             ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
                             ])
     def obtain_generation_model(controlnet_path):
@@ -214,7 +215,7 @@ def create_demo():
                     controlnet_conditioning_image=control.type(torch.float16),
                     height=H,
                     width=W,
-                    controlnet_conditioning_scale=control_scale,
+                    controlnet_conditioning_scale=float(control_scale),
                 ).images
 
 
