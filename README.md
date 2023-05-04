@@ -53,9 +53,11 @@ Highlight features:
 
 ## Generate/Edit your beauty!!!🔥🔥🔥
 **Edit Your beauty and Generate Your beauty**
-
+<div>
 <img width="277" alt="image" src="images/beauty_edit.gif">
 <img width="300" alt="image" src="images/beauty_demo.gif">
+</div>
+
 
 ## Customized editing with layout alignment control.
 <img width="1392" alt="image" src="https://user-images.githubusercontent.com/20515144/233339751-2c9e4ec8-e884-4c0e-95de-42512eccee85.png">
