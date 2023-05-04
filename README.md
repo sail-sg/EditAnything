@@ -14,6 +14,10 @@ are very welcomed!
 
 # News🔥
 
+2023/05/04 - New demos of Beauty/Handsome Edit/Generation is released! [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+
+2023/05/04 - ControlNet-based inpainting model on any lora model is supported now. EditAnything can operate on any base/lord models without the requirements of inpainting model.
+
 2023/05/01 - Models V0.4 based on Stable Diffusion 1.5/2.1 are released. New models are trained with more data and iterations.[Model Zoo](https://github.com/sail-sg/EditAnything#model-zoo)
 
 2023/04/20 - We support the Customized editing with DreamBooth.
@@ -46,6 +50,12 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
+
+## Generate/Edit your beauty!!!🔥🔥🔥
+**Edit Your beauty and Generate Your beauty**
+
+<img width="277" alt="image" src="images/beauty_edit.gif">
+<img width="300" alt="image" src="images/beauty_demo.gif">
 
 ## Customized editing with layout alignment control.
 <img width="1392" alt="image" src="https://user-images.githubusercontent.com/20515144/233339751-2c9e4ec8-e884-4c0e-95de-42512eccee85.png">
