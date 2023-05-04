@@ -26,7 +26,7 @@ def create_demo():
     # diffusers==0.14.0 required.
     from diffusers import StableDiffusionInpaintPipeline
     from diffusers import ControlNetModel, UniPCMultistepScheduler
-    from utils.stable_diffusion_controlnet_inpaint_v3 import StableDiffusionControlNetInpaintPipeline
+    from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
     from diffusers.utils import load_image
 
     base_model_path = "stabilityai/stable-diffusion-2-inpainting"
