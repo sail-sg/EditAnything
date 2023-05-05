@@ -23,10 +23,52 @@ from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
 from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
 # from utils.tmp import StableDiffusionControlNetInpaintPipeline
+# need the latest transformers
+# pip install git+https://github.com/huggingface/transformers.git
+from transformers import AutoProcessor, Blip2ForConditionalGeneration
+
+# Segment-Anything init.
+# pip install git+https://github.com/facebookresearch/segment-anything.git
+try:
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+except ImportError:
+    print('segment_anything not installed')
+    result = subprocess.run(
+        ['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
+    print(f'Install segment_anything {result}')
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
+    result = subprocess.run(
+        ['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
+    print(f'Download sam_vit_h_4b8939.pth {result}')
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 config_dict = OrderedDict([
-    ('LAION Pretrained(v0-4)', 'shgao/edit-anything-v0-4-sd15'),
+    ('LAION Pretrained(v0-4)-SD15', 'shgao/edit-anything-v0-4-sd15'),
+    ('LAION Pretrained(v0-4)-SD21', 'shgao/edit-anything-v0-4-sd21'),
 ])
+
+
+def init_sam_model():
+    sam_checkpoint = "models/sam_vit_h_4b8939.pth"
+    model_type = "default"
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    sam.to(device=device)
+    sam_generator = SamAutomaticMaskGenerator(sam)
+    return sam_generator
+
+
+def init_blip_processor():
+    blip_processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    return blip_processor
+
+
+def init_blip_model():
+    blip_model = Blip2ForConditionalGeneration.from_pretrained(
+        "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16, device_map="auto")
+    return blip_model
+
 
 def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     # https://github.com/huggingface/diffusers/issues/2136
@@ -42,7 +84,6 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     # simple way to determine length of tokens
     count_prompt = len(re.split(r', ', prompt))
     count_negative_prompt = len(re.split(r', ', negative_prompt))
-    print("debug", count_prompt,count_negative_prompt)
 
     # create the tensor based on which prompt is longer
     if count_prompt >= count_negative_prompt:
@@ -51,7 +92,6 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
         shape_max_length = input_ids.shape[-1]
         negative_ids = pipeline.tokenizer(negative_prompt, truncation=False, padding="max_length",
                                           max_length=shape_max_length, return_tensors="pt").input_ids.to(device)
-
     else:
         negative_ids = pipeline.tokenizer(
             negative_prompt, return_tensors="pt", truncation=False).input_ids.to(device)
@@ -185,29 +225,41 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
                         alpha * torch.mm(weight_up, weight_down)
     return pipeline
 
+
 def make_inpaint_condition(image, image_mask):
     # image = np.array(image.convert("RGB")).astype(np.float32) / 255.0
     image = image / 255.0
     print("img", image.max(), image.min(), image_mask.max(), image_mask.min())
     # image_mask = np.array(image_mask.convert("L"))
-    assert image.shape[0:1] == image_mask.shape[0:1], "image and image_mask must have the same image size"
-    image[image_mask > 128] = -1.0 # set as masked pixel 
+    assert image.shape[0:1] == image_mask.shape[0:
+                                                1], "image and image_mask must have the same image size"
+    image[image_mask > 128] = -1.0  # set as masked pixel
     image = np.expand_dims(image, 0).transpose(0, 3, 1, 2)
     image = torch.from_numpy(image)
     return image
 
-def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False):
-    if generation_only:
+
+def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False, extra_inpaint=True):
+    if generation_only and extra_inpaint:
         controlnet = ControlNetModel.from_pretrained(
             controlnet_path, torch_dtype=torch.float16)
         pipe = StableDiffusionControlNetPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
-    else:
+    elif extra_inpaint:
+        print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
         controlnet = [
-            ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16),
-            ControlNetModel.from_pretrained('lllyasviel/control_v11p_sd15_inpaint', torch_dtype=torch.float16), # inpainting controlnet
+            ControlNetModel.from_pretrained(
+                controlnet_path, torch_dtype=torch.float16),
+            ControlNetModel.from_pretrained(
+                'lllyasviel/control_v11p_sd15_inpaint', torch_dtype=torch.float16),  # inpainting controlnet
         ]
+        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        )
+    else:
+        controlnet = ControlNetModel.from_pretrained(
+            controlnet_path, torch_dtype=torch.float16)
         pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
@@ -222,6 +274,7 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
 
     pipe.enable_model_cpu_offload()
     return pipe
+
 
 def show_anns(anns):
     if len(anns) == 0:
@@ -248,61 +301,58 @@ def show_anns(anns):
     full_img = Image.fromarray(np.uint8(full_img))
     return full_img, res
 
+
 class EditAnythingLoraModel:
     def __init__(self,
-                 base_model_path= '../chilloutmix_NiPrunedFp32Fix',
-                 lora_model_path= '../40806/mix4', use_blip=True):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+                 base_model_path='../chilloutmix_NiPrunedFp32Fix',
+                 lora_model_path='../40806/mix4', use_blip=True,
+                 blip_processor=None,
+                 blip_model=None,
+                 sam_generator=None,
+                 controlmodel_name='LAION Pretrained(v0-4)-SD15',
+                 # used when the base model is not an inpainting model.
+                 extra_inpaint=True,
+                 ):
         self.device = device
-        self.use_blip=use_blip
+        self.use_blip = use_blip
 
         # Diffusion init using diffusers.
-        self.default_controlnet_path = config_dict['LAION Pretrained(v0-4)']
+        self.default_controlnet_path = config_dict[controlmodel_name]
         self.base_model_path = base_model_path
         self.lora_model_path = lora_model_path
         self.defalut_enable_all_generate = False
-        self.pipe = obtain_generation_model(base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False)
+        self.extra_inpaint = extra_inpaint
+        self.pipe = obtain_generation_model(
+            base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint)
 
         # Segment-Anything init.
-        # pip install git+https://github.com/facebookresearch/segment-anything.git
-        try:
-            from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-        except ImportError:
-            print('segment_anything not installed')
-            result = subprocess.run(
-                ['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
-            print(f'Install segment_anything {result}')
-            from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-        if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
-            result = subprocess.run(
-                ['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
-            print(f'Download sam_vit_h_4b8939.pth {result}')
-        sam_checkpoint = "models/sam_vit_h_4b8939.pth"
-        model_type = "default"
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-        sam.to(device=device)
-        self.mask_generator = SamAutomaticMaskGenerator(sam)
+        if sam_generator is not None:
+            self.sam_generator = sam_generator
+        else:
+            self.sam_generator = init_sam_model()
 
         # BLIP2 init.
         if use_blip:
-            # need the latest transformers
-            # pip install git+https://github.com/huggingface/transformers.git
-            from transformers import AutoProcessor, Blip2ForConditionalGeneration
+            if blip_processor is not None:
+                self.blip_processor = blip_processor
+            else:
+                self.blip_processor = init_blip_processor()
 
-            self.processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
-            self.blip_model = Blip2ForConditionalGeneration.from_pretrained(
-                "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16, device_map="auto")
+            if blip_model is not None:
+                self.blip_model = blip_model
+            else:
+                self.blip_model = init_blip_model()
 
     def get_blip2_text(self, image):
-        inputs = self.processor(image, return_tensors="pt").to(
+        inputs = self.blip_processor(image, return_tensors="pt").to(
             self.device, torch.float16)
         generated_ids = self.blip_model.generate(**inputs, max_new_tokens=50)
-        generated_text = self.processor.batch_decode(
+        generated_text = self.blip_processor.batch_decode(
             generated_ids, skip_special_tokens=True)[0].strip()
         return generated_text
 
     def get_sam_control(self, image):
-        masks = self.mask_generator.generate(image)
+        masks = self.sam_generator.generate(image)
         full_img, res = show_anns(masks)
         return full_img, res
 
@@ -311,19 +361,22 @@ class EditAnythingLoraModel:
 
         input_image = source_image["image"]
         if mask_image is None:
-            if enable_all_generate!=self.defalut_enable_all_generate:
+            if enable_all_generate != self.defalut_enable_all_generate:
                 print("source_image",
                       source_image["mask"].shape, input_image.shape,)
                 mask_image = np.ones(
                     (input_image.shape[0], input_image.shape[1], 3))*255
-                self.pipe = obtain_generation_model(self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate)
+                self.pipe = obtain_generation_model(
+                    self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
                 self.defalut_enable_all_generate = enable_all_generate
             else:
                 mask_image = source_image["mask"]
         if self.default_controlnet_path != config_dict[condition_model]:
-            print("To Use:", config_dict[condition_model], "Current:", self.default_controlnet_path)
+            print("To Use:", config_dict[condition_model],
+                  "Current:", self.default_controlnet_path)
             print("Change condition model to:", config_dict[condition_model])
-            self.pipe = obtain_generation_model(self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate)
+            self.pipe = obtain_generation_model(
+                self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
             self.default_controlnet_path = config_dict[condition_model]
             torch.cuda.empty_cache()
 
@@ -359,13 +412,8 @@ class EditAnythingLoraModel:
             mask_image = HWC3(mask_image.astype(np.uint8))
             mask_image = cv2.resize(
                 mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
-            inpaint_image = make_inpaint_condition(img, mask_image)
-            # mask_tensor = torch.from_numpy(
-            #     mask_image.copy()).float().cuda()
-            # mask_tensor = torch.stack([mask_tensor for _ in range(num_samples)], dim=0)
-            # mask_tensor = einops.rearrange(mask_tensor, 'b h w c -> b c h w').clone()
-            # mask_tensor = mask_tensor/255.0
-            # print("mask_tensor",mask_tensor.shape, mask_tensor.max(), mask_tensor.min())
+            if self.extra_inpaint:
+                inpaint_image = make_inpaint_condition(img, mask_image)
             mask_image = Image.fromarray(mask_image)
 
             if seed == -1:
@@ -379,8 +427,10 @@ class EditAnythingLoraModel:
             prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds] * num_samples, dim=0)
-            if enable_all_generate:
-                self.pipe.safety_checker = lambda images, clip_input: (images, False)
+            if enable_all_generate and self.extra_inpaint:
+                print(control.shape, control_scale)
+                self.pipe.safety_checker = lambda images, clip_input: (
+                    images, False)
                 x_samples = self.pipe(
                     prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
                     num_images_per_prompt=num_samples,
@@ -391,6 +441,20 @@ class EditAnythingLoraModel:
                     image=control.type(torch.float16),
                     controlnet_conditioning_scale=float(control_scale),
                 ).images
+            elif self.extra_inpaint:
+                x_samples = self.pipe(
+                    image=img,
+                    mask_image=mask_image,
+                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                    num_images_per_prompt=num_samples,
+                    num_inference_steps=ddim_steps,
+                    generator=generator,
+                    controlnet_conditioning_image=[control.type(
+                        torch.float16), inpaint_image.type(torch.float16)],
+                    height=H,
+                    width=W,
+                    controlnet_conditioning_scale=(float(control_scale), 1.0),
+                ).images
             else:
                 x_samples = self.pipe(
                     image=img,
@@ -399,10 +463,10 @@ class EditAnythingLoraModel:
                     num_images_per_prompt=num_samples,
                     num_inference_steps=ddim_steps,
                     generator=generator,
-                    controlnet_conditioning_image=[control.type(torch.float16), inpaint_image.type(torch.float16)],
+                    controlnet_conditioning_image=control.type(torch.float16),
                     height=H,
                     width=W,
-                    controlnet_conditioning_scale=(float(control_scale), 1.0),
+                    controlnet_conditioning_scale=float(control_scale),
                 ).images
 
             results = [x_samples[i] for i in range(num_samples)]

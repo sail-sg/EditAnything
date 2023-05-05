@@ -1,324 +1,96 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
-from torchvision.utils import save_image
-from PIL import Image
-from pytorch_lightning import seed_everything
-import subprocess
-from collections import OrderedDict
-
-import cv2
-import einops
 import gradio as gr
-import numpy as np
-import torch
-import random
-import os
-import requests
-from io import BytesIO
-from annotator.util import resize_image, HWC3
-
-def create_demo():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    use_blip = True
-    use_gradio = True
-
-    # Diffusion init using diffusers.
-
-    # diffusers==0.14.0 required.
-    from diffusers import StableDiffusionInpaintPipeline
-    from diffusers import ControlNetModel, UniPCMultistepScheduler
-    from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
-    from diffusers.utils import load_image
-
-    base_model_path = "stabilityai/stable-diffusion-2-inpainting"
-    # base_model_path = "../save-model"
-    # base_model_path = "../save-model-chang"
-    config_dict = OrderedDict([('SAM Pretrained(v0-1): Good Natural Sense', 'shgao/edit-anything-v0-1-1'),
-                            ('LAION Pretrained(v0-4): Good Face', 'shgao/edit-anything-v0-4-sd21'),
-                            ('LAION Pretrained(v0-3): Good Face', 'shgao/edit-anything-v0-3'),
-                            ('SD Inpainting: Not keep position', 'stabilityai/stable-diffusion-2-inpainting')
-                            ])
-    def obtain_generation_model(controlnet_path):
-        if controlnet_path=='stabilityai/stable-diffusion-2-inpainting':
-            pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                "stabilityai/stable-diffusion-2-inpainting",
-                torch_dtype=torch.float16,
-            )
-        else:
-            controlnet = ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
-            pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-                base_model_path, controlnet=controlnet, torch_dtype=torch.float16
-            )
-        # speed up diffusion process with faster scheduler and memory optimization
-        pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
-        # remove following line if xformers is not installed
-        pipe.enable_xformers_memory_efficient_attention()
-
-        pipe.enable_model_cpu_offload() # disable for now because of unknow bug in accelerate
-        # pipe.to(device)
-        return pipe
-    global default_controlnet_path
-    global pipe
-    default_controlnet_path = config_dict['LAION Pretrained(v0-4): Good Face']
-    pipe = obtain_generation_model(default_controlnet_path)
-
-    # Segment-Anything init.
-    # pip install git+https://github.com/facebookresearch/segment-anything.git
-
-    try:
-        from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-    except ImportError:
-        print('segment_anything not installed')
-        result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
-        print(f'Install segment_anything {result}')   
-        from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-    if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
-        result = subprocess.run(['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
-        print(f'Download sam_vit_h_4b8939.pth {result}')   
-    sam_checkpoint = "models/sam_vit_h_4b8939.pth"
-    model_type = "default"
-    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-    sam.to(device=device)
-    mask_generator = SamAutomaticMaskGenerator(sam)
+from diffusers.utils import load_image
+from sam2edit_lora_sd15 import EditAnythingLoraModel, config_dict
 
 
-    # BLIP2 init.
-    if use_blip:
-        # need the latest transformers
-        # pip install git+https://github.com/huggingface/transformers.git
-        from transformers import AutoProcessor, Blip2ForConditionalGeneration
+def create_demo(process):
 
-        processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
-        blip_model = Blip2ForConditionalGeneration.from_pretrained(
-            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16, device_map="auto")
+    examples = [
+        ["dudou,1girl, beautiful face, solo, candle, brown hair, long hair, <lora:flowergirl:0.9>,ulzzang-6500-v1.1,(raw photo:1.2),((photorealistic:1.4))best quality ,masterpiece, illustration, an extremely delicate and beautiful, extremely detailed ,CG ,unity ,8k wallpaper, Amazing, finely detail, masterpiece,best quality,official art,extremely detailed CG unity 8k wallpaper,absurdres, incredibly absurdres, huge filesize, ultra-detailed, highres, extremely detailed,beautiful detailed girl, extremely detailed eyes and face, beautiful detailed eyes,cinematic lighting,1girl,see-through,looking at viewer,full body,full-body shot,outdoors,arms behind back,(chinese clothes) <lora:cuteGirlMix4_v10:1>",
+         "(((mole))),sketches, (worst quality:2), (low quality:2), (normal quality:2), lowres, normal quality, ((monochrome)), ((grayscale)), skin spots, acnes, skin blemishes, bad anatomy,(long hair:1.4),DeepNegative,(fat:1.2),facing away, looking away,tilted head, lowres,bad anatomy,bad hands, text, error, missing fingers,extra digit, fewer digits, cropped, worstquality, low quality, normal quality,jpegartifacts,signature, watermark, username,blurry,bad feet,cropped,poorly drawn hands,poorly drawn face,mutation,deformed,worst quality,low quality,normal quality,jpeg artifacts,signature,watermark,extra fingers,fewer digits,extra limbs,extra arms,extra legs,malformed limbs,fused fingers,too many fingers,long neck,cross-eyed,mutated hands,polar lowres,bad body,bad proportions,gross proportions,text,error,missing fingers,missing arms,missing legs,extra digit, extra arms, extra leg, extra foot,(freckles),(mole:2)", 5],
+        ["best quality, ultra high res, (photorealistic:1.4), (detailed beautiful girl:1.4), (medium breasts:0.8), looking_at_viewer, Detailed facial details, beautiful detailed eyes, (multicolored|blue|pink hair: 1.2), green eyes, slender, haunting smile, (makeup:0.3), red lips, <lora:cuteGirlMix4_v10:0.7>, highly detailed clothes, (ulzzang-6500-v1.1:0.3)",
+         "EasyNegative, paintings, sketches, ugly, 3d, (worst quality:2), (low quality:2), (normal quality:2), lowres, normal quality, ((monochrome)), ((grayscale)), skin spots, acnes, skin blemishes, age spot, manboobs, backlight,(ugly:1.3), (duplicate:1.3), (morbid:1.2), (mutilated:1.2), (tranny:1.3), mutated hands, (poorly drawn hands:1.3), blurry, (bad anatomy:1.2), (bad proportions:1.3), extra limbs, (disfigured:1.3), (more than 2 nipples:1.3), (more than 1 navel:1.3), (missing arms:1.3), (extra legs:1.3), (fused fingers:1.6), (too many fingers:1.6), (unclear eyes:1.3), bad hands, missing fingers, extra digit, (futa:1.1), bad body, double navel, mutad arms, hused arms, (puffy nipples, dark areolae, dark nipples, rei no himo, inverted nipples, long nipples), NG_DeepNegative_V1_75t, pubic hair, fat rolls, obese, bad-picture-chill-75v", 8],
+        ["best quality, ultra high res, (photorealistic:1.4), (detailed beautiful girl:1.4), (medium breasts:0.8), looking_at_viewer, Detailed facial details, beautiful detailed eyes, (blue|pink hair), green eyes, slender, smile, (makeup:0.4), red lips, (full body, sitting, beach), <lora:cuteGirlMix4_v10:0.7>, highly detailed clothes, (ulzzang-6500-v1.1:0.3)",
+         "asyNegative, paintings, sketches, ugly, 3d, (worst quality:2), (low quality:2), (normal quality:2), lowres, normal quality, ((monochrome)), ((grayscale)), skin spots, acnes, skin blemishes, age spot, manboobs, backlight,(ugly:1.3), (duplicate:1.3), (morbid:1.2), (mutilated:1.2), (tranny:1.3), mutated hands, (poorly drawn hands:1.3), blurry, (bad anatomy:1.2), (bad proportions:1.3), extra limbs, (disfigured:1.3), (more than 2 nipples:1.3), (more than 1 navel:1.3), (missing arms:1.3), (extra legs:1.3), (fused fingers:1.6), (too many fingers:1.6), (unclear eyes:1.3), bad hands, missing fingers, extra digit, (futa:1.1), bad body, double navel, mutad arms, hused arms, (puffy nipples, dark areolae, dark nipples, rei no himo, inverted nipples, long nipples), NG_DeepNegative_V1_75t, pubic hair, fat rolls, obese, bad-picture-chill-75v", 7],
+        ["mix4, whole body shot, ((8k, RAW photo, highest quality, masterpiece), High detail RAW color photo professional close-up photo, shy expression, cute, beautiful detailed girl, detailed fingers, extremely detailed eyes and face, beautiful detailed nose, beautiful detailed eyes, long eyelashes, light on face, looking at viewer, (closed mouth:1.2), 1girl, cute, young, mature face, (full body:1.3), ((small breasts)), realistic face, realistic body, beautiful detailed thigh,s, same eyes color, (realistic, photo realism:1. 37), (highest quality), (best shadow), (best illustration), ultra high resolution, physics-based rendering, cinematic lighting), solo, 1girl, highly detailed, in office, detailed office, open cardigan, ponytail contorted, beautiful eyes ,sitting in office,dating, business suit, cross-laced clothes, collared shirt, beautiful breast, small breast, Chinese dress, white pantyhose, natural breasts, pink and white hair, <lora:cuteGirlMix4_v10:1>",
+         "paintings, sketches, (worst quality:2), (low quality:2), (normal quality:2), cloth, underwear, bra, low-res, normal quality, ((monochrome)), ((grayscale)), skin spots, acne, skin blemishes, age spots, glans, bad nipples, long nipples, bad vagina, extra fingers,fewer fingers,strange fingers,bad hand, ng_deepnegative_v1_75t, bad-picture-chill-75v", 7]
+    ]
 
+    print("The GUI is not fully tested yet. Please open an issue if you find bugs.")
+    WARNING_INFO = f'''### [NOTE]  the model is collected from the Internet for demo only, please do not use it for commercial purposes.
+    We are not responsible for possible risks using this model.
 
-    def get_blip2_text(image):
-        inputs = processor(image, return_tensors="pt").to(device, torch.float16)
-        generated_ids = blip_model.generate(**inputs, max_new_tokens=50)
-        generated_text = processor.batch_decode(
-            generated_ids, skip_special_tokens=True)[0].strip()
-        return generated_text
-
-
-    def show_anns(anns):
-        if len(anns) == 0:
-            return
-        sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
-        full_img = None
-
-        # for ann in sorted_anns:
-        for i in range(len(sorted_anns)):
-            ann = anns[i]
-            m = ann['segmentation']
-            if full_img is None:
-                full_img = np.zeros((m.shape[0], m.shape[1], 3))
-                map = np.zeros((m.shape[0], m.shape[1]), dtype=np.uint16)
-            map[m != 0] = i + 1
-            color_mask = np.random.random((1, 3)).tolist()[0]
-            full_img[m != 0] = color_mask
-        full_img = full_img*255
-        # anno encoding from https://github.com/LUSSeg/ImageNet-S
-        res = np.zeros((map.shape[0], map.shape[1], 3))
-        res[:, :, 0] = map % 256
-        res[:, :, 1] = map // 256
-        res.astype(np.float32)
-        full_img = Image.fromarray(np.uint8(full_img))
-        return full_img, res
-
-
-    def get_sam_control(image):
-        masks = mask_generator.generate(image)
-        full_img, res = show_anns(masks)
-        return full_img, res
-
-
-    def process(condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
-
-        input_image = source_image["image"]
-        if mask_image is None:
-            if enable_all_generate:
-                print("source_image", source_image["mask"].shape, input_image.shape,)
-                print(source_image["mask"].max())
-                mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
-            else:
-                mask_image = source_image["mask"]
-        global default_controlnet_path
-        print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
-        if default_controlnet_path!=config_dict[condition_model]:
-            print("Change condition model to:", config_dict[condition_model])
-            global pipe
-            pipe = obtain_generation_model(config_dict[condition_model])
-            default_controlnet_path = config_dict[condition_model]
-            torch.cuda.empty_cache()
-
-        with torch.no_grad():
-            if use_blip and (enable_auto_prompt or len(prompt) == 0):
-                print("Generating text:")
-                blip2_prompt = get_blip2_text(input_image)
-                print("Generated text:", blip2_prompt)
-                if len(prompt)>0:
-                    prompt = blip2_prompt + ',' + prompt
-                else:
-                    prompt = blip2_prompt
-                print("All text:", prompt)
-
-            input_image = HWC3(input_image)
-
-            img = resize_image(input_image, image_resolution)
-            H, W, C = img.shape
-
-            print("Generating SAM seg:")
-            # the default SAM model is trained with 1024 size.
-            full_segmask, detected_map = get_sam_control(
-                resize_image(input_image, detect_resolution))
-
-            detected_map = HWC3(detected_map.astype(np.uint8))
-            detected_map = cv2.resize(
-                detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
-
-            control = torch.from_numpy(
-                detected_map.copy()).float().cuda()
-            control = torch.stack([control for _ in range(num_samples)], dim=0)
-            control = einops.rearrange(control, 'b h w c -> b c h w').clone()
-
-            mask_image = HWC3(mask_image.astype(np.uint8))
-            mask_image = cv2.resize(
-                mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
-            mask_image = Image.fromarray(mask_image)
-
-
-            if seed == -1:
-                seed = random.randint(0, 65535)
-            seed_everything(seed)
-            generator = torch.manual_seed(seed)
-            if condition_model=='SD Inpainting: Not keep position':
-                x_samples = pipe(
-                    image=img,
-                    mask_image=mask_image,
-                    prompt=[prompt + ', ' + a_prompt] * num_samples,
-                    negative_prompt=[n_prompt] * num_samples,  
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps, 
-                    generator=generator, 
-                    height=H,
-                    width=W,
-                ).images
-            else:
-                x_samples = pipe(
-                    image=img,
-                    mask_image=mask_image,
-                    prompt=[prompt + ', ' + a_prompt] * num_samples,
-                    negative_prompt=[n_prompt] * num_samples,  
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps, 
-                    generator=generator, 
-                    controlnet_conditioning_image=control.type(torch.float16),
-                    height=H,
-                    width=W,
-                    controlnet_conditioning_scale=float(control_scale),
-                ).images
-
-
-            results = [x_samples[i] for i in range(num_samples)]
-        return [full_segmask, mask_image] + results, prompt
-
-
-    def download_image(url):
-        response = requests.get(url)
-        return Image.open(BytesIO(response.content)).convert("RGB")
-
-    # disable gradio when not using GUI.
-    if not use_gradio:
-        # This part is not updated, it's just a example to use it without GUI.
-        image_path = "../data/samples/sa_223750.jpg"
-        mask_path = "../data/samples/sa_223750inpaint.png"
-        input_image = Image.open(image_path)
-        mask_image = Image.open(mask_path)
-        enable_auto_prompt = True
-        input_image = np.array(input_image, dtype=np.uint8)
-        mask_image = np.array(mask_image, dtype=np.uint8)
-        prompt = "esplendent sunset sky, red brick wall"
-        a_prompt = 'best quality, extremely detailed'
-        n_prompt = 'longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality'
-        num_samples = 3
-        image_resolution = 512
-        detect_resolution = 512
-        ddim_steps = 30
-        guess_mode = False
-        strength = 1.0
-        scale = 9.0
-        seed = -1
-        eta = 0.0
-
-        outputs = process(condition_model, input_image, mask_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                        detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
-
-        image_list = []
-        input_image = resize_image(input_image, 512)
-        image_list.append(torch.tensor(input_image))
-        for i in range(len(outputs)):
-            each = outputs[i]
-            if type(each) is not np.ndarray:
-                each = np.array(each, dtype=np.uint8)
-            each = resize_image(each, 512)
-            print(i, each.shape)
-            image_list.append(torch.tensor(each))
-
-        image_list = torch.stack(image_list).permute(0, 3, 1, 2)
-
-        save_image(image_list, "sample.jpg", nrow=3,
-                normalize=True, value_range=(0, 255))
-    else:
-        print("The GUI is not fully tested yet. Please open an issue if you find bugs.")
-        block = gr.Blocks()
-        with block as demo:
-            with gr.Row():
-                gr.Markdown(
-                    "## Edit Anything")
-            with gr.Row():
-                with gr.Column():
-                    source_image = gr.Image(source='upload',label="Image (Upload an image and cover the region you want to edit with sketch)",  type="numpy", tool="sketch")
-                    enable_all_generate = gr.Checkbox(label='Auto generation on all region.', value=False)
-                    prompt = gr.Textbox(label="Prompt (Text in the expected things of edited region)")
-                    enable_auto_prompt = gr.Checkbox(label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=True)
-                    control_scale = gr.Slider(
-                            label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
-                    run_button = gr.Button(label="Run")
+    Lora model from https://civitai.com/models/14171/cutegirlmix4 Thanks!
+    '''
+    block = gr.Blocks()
+    with block as demo:
+        with gr.Row():
+            gr.Markdown(
+                "## Generate Your Beauty powered by EditAnything https://github.com/sail-sg/EditAnything ")
+        with gr.Row():
+            with gr.Column():
+                source_image = gr.Image(
+                    source='upload', label="Image (Upload an image and cover the region you want to edit with sketch)",  type="numpy", tool="sketch")
+                enable_all_generate = gr.Checkbox(
+                    label='Auto generation on all region.', value=False)
+                prompt = gr.Textbox(
+                    label="Prompt (Text in the expected things of edited region)")
+                enable_auto_prompt = gr.Checkbox(
+                    label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=False)
+                a_prompt = gr.Textbox(
+                    label="Added Prompt", value='best quality, extremely detailed')
+                n_prompt = gr.Textbox(label="Negative Prompt",
+                                      value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+                control_scale = gr.Slider(
+                    label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
+                run_button = gr.Button(label="Run")
+                num_samples = gr.Slider(
+                    label="Images", minimum=1, maximum=12, value=2, step=1)
+                seed = gr.Slider(label="Seed", minimum=-1,
+                                 maximum=2147483647, step=1, randomize=True)
+                with gr.Accordion("Advanced options", open=False):
                     condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                value=list(config_dict.keys())[1],
-                                                label='Model',
-                                                multiselect=False)
-                    num_samples = gr.Slider(
-                            label="Images", minimum=1, maximum=12, value=2, step=1)
-                    with gr.Accordion("Advanced options", open=False):
-                        mask_image = gr.Image(source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
-                        image_resolution = gr.Slider(
-                            label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                        strength = gr.Slider(
-                            label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
-                        guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                        detect_resolution = gr.Slider(
-                            label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
-                        ddim_steps = gr.Slider(
-                            label="Steps", minimum=1, maximum=100, value=30, step=1)
-                        scale = gr.Slider(
-                            label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                        seed = gr.Slider(label="Seed", minimum=-1,
-                                        maximum=2147483647, step=1, randomize=True)
-                        eta = gr.Number(label="eta (DDIM)", value=0.0)
-                        a_prompt = gr.Textbox(
-                            label="Added Prompt", value='best quality, extremely detailed')
-                        n_prompt = gr.Textbox(label="Negative Prompt",
-                                            value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
-                with gr.Column():
-                    result_gallery = gr.Gallery(
-                        label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-                    result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-            run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
-        return demo
+                                                  value=list(
+                        config_dict.keys())[1],
+                        label='Model',
+                        multiselect=False)
+                    mask_image = gr.Image(
+                        source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
+                    image_resolution = gr.Slider(
+                        label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                    strength = gr.Slider(
+                        label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
+                    guess_mode = gr.Checkbox(
+                        label='Guess Mode', value=False)
+                    detect_resolution = gr.Slider(
+                        label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
+                    ddim_steps = gr.Slider(
+                        label="Steps", minimum=1, maximum=100, value=30, step=1)
+                    scale = gr.Slider(
+                        label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
+                    eta = gr.Number(label="eta (DDIM)", value=0.0)
+            with gr.Column():
+                result_gallery = gr.Gallery(
+                    label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
+                result_text = gr.Text(label='BLIP2+Human Prompt Text')
+        ips = [condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+        run_button.click(fn=process, inputs=ips, outputs=[
+            result_gallery, result_text])
+        with gr.Row():
+            ex = gr.Examples(examples=examples, fn=process,
+                             inputs=[a_prompt, n_prompt, scale],
+                             outputs=[result_gallery],
+                             cache_examples=False)
+        with gr.Row():
+            gr.Markdown(WARNING_INFO)
+    return demo
+
 
 if __name__ == '__main__':
-    demo = create_demo()
+    model = EditAnythingLoraModel(base_model_path="stabilityai/stable-diffusion-2-inpainting",
+                                  controlmodel_name='LAION Pretrained(v0-4)-SD21', extra_inpaint=False,
+                                  lora_model_path=None, use_blip=True)
+    demo = create_demo(model.process)
     demo.queue().launch(server_name='0.0.0.0')
