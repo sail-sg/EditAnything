@@ -362,13 +362,14 @@ class EditAnythingLoraModel:
         input_image = source_image["image"]
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
+                self.pipe = obtain_generation_model(
+                    self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
+                self.defalut_enable_all_generate = enable_all_generate
+            if enable_all_generate:
                 print("source_image",
                       source_image["mask"].shape, input_image.shape,)
                 mask_image = np.ones(
                     (input_image.shape[0], input_image.shape[1], 3))*255
-                self.pipe = obtain_generation_model(
-                    self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
-                self.defalut_enable_all_generate = enable_all_generate
             else:
                 mask_image = source_image["mask"]
         if self.default_controlnet_path != config_dict[condition_model]:
