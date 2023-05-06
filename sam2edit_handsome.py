@@ -1,7 +1,7 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 import gradio as gr
 from diffusers.utils import load_image
-from sam2edit_lora_sd15 import EditAnythingLoraModel, config_dict
+from sam2edit_lora import EditAnythingLoraModel, config_dict
 
 
 
