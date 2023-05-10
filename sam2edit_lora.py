@@ -401,6 +401,7 @@ class EditAnythingLoraModel:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
                     self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate, self.extra_inpaint)
+
                 self.defalut_enable_all_generate = enable_all_generate
             if enable_all_generate:
                 print("source_image",
