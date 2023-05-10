@@ -26,6 +26,8 @@ from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetI
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
+from diffusers import ControlNetModel, DiffusionPipeline
+import PIL.Image
 
 # Segment-Anything init.
 # pip install git+https://github.com/facebookresearch/segment-anything.git
@@ -108,6 +110,7 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
             negative_ids[:, i: i + max_length])[0])
 
     return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
+
 
 
 def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
@@ -238,34 +241,27 @@ def make_inpaint_condition(image, image_mask):
     image = torch.from_numpy(image)
     return image
 
+def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False, extra_inpaint=True, lora_weight=1.0):
+    controlnet = []
+    controlnet.append(ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)) # sam control
+    if (not generation_only) and extra_inpaint: # inpainting control
+        print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
+        controlnet.append(
+            ControlNetModel.from_pretrained(
+                'lllyasviel/control_v11p_sd15_inpaint', torch_dtype=torch.float16)  # inpainting controlnet
+        )
 
-def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False, extra_inpaint=True):
-    if generation_only and extra_inpaint:
-        controlnet = ControlNetModel.from_pretrained(
-            controlnet_path, torch_dtype=torch.float16)
+    if generation_only:
         pipe = StableDiffusionControlNetPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
-    elif extra_inpaint:
-        print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
-        controlnet = [
-            ControlNetModel.from_pretrained(
-                controlnet_path, torch_dtype=torch.float16),
-            ControlNetModel.from_pretrained(
-                'lllyasviel/control_v11p_sd15_inpaint', torch_dtype=torch.float16),  # inpainting controlnet
-        ]
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
-        )
     else:
-        controlnet = ControlNetModel.from_pretrained(
-            controlnet_path, torch_dtype=torch.float16)
         pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     if lora_model_path is not None:
         pipe = load_lora_weights(
-            pipe, [lora_model_path], 1.0, 'cpu', torch.float32)
+            pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
     # speed up diffusion process with faster scheduler and memory optimization
     pipe.scheduler = UniPCMultistepScheduler.from_config(
         pipe.scheduler.config)
@@ -274,6 +270,31 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
 
     pipe.enable_model_cpu_offload()
     return pipe
+
+def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
+    controlnet = ControlNetModel.from_pretrained(
+                'lllyasviel/control_v11f1e_sd15_tile', torch_dtype=torch.float16) # tile controlnet
+    if base_model_path=='runwayml/stable-diffusion-v1-5' or base_model_path=='stabilityai/stable-diffusion-2-inpainting':
+        print("base_model_path", base_model_path)
+        pipe = StableDiffusionControlNetPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        )
+    else:
+        pipe = StableDiffusionControlNetPipeline.from_pretrained(
+             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        )
+    if lora_model_path is not None:
+        pipe = load_lora_weights(
+            pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
+    # speed up diffusion process with faster scheduler and memory optimization
+    pipe.scheduler = UniPCMultistepScheduler.from_config(
+        pipe.scheduler.config)
+    # remove following line if xformers is not installed
+    pipe.enable_xformers_memory_efficient_attention()
+
+    pipe.enable_model_cpu_offload()
+    return pipe
+
 
 
 def show_anns(anns):
@@ -310,8 +331,9 @@ class EditAnythingLoraModel:
                  blip_model=None,
                  sam_generator=None,
                  controlmodel_name='LAION Pretrained(v0-4)-SD15',
-                 # used when the base model is not an inpainting model.
-                 extra_inpaint=True,
+                 extra_inpaint=True, # used when the base model is not an inpainting model.
+                 tile_model=None,
+                 lora_weight=1.0,
                  ):
         self.device = device
         self.use_blip = use_blip
@@ -323,7 +345,7 @@ class EditAnythingLoraModel:
         self.defalut_enable_all_generate = False
         self.extra_inpaint = extra_inpaint
         self.pipe = obtain_generation_model(
-            base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint)
+            base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint, lora_weight=lora_weight)
 
         # Segment-Anything init.
         if sam_generator is not None:
@@ -343,6 +365,12 @@ class EditAnythingLoraModel:
             else:
                 self.blip_model = init_blip_model()
 
+        # tile model init.
+        if tile_model is not None:
+            self.tile_pipe = tile_model
+        else:
+            self.tile_pipe = obtain_tile_model(base_model_path, lora_model_path, lora_weight=lora_weight)
+
     def get_blip2_text(self, image):
         inputs = self.blip_processor(image, return_tensors="pt").to(
             self.device, torch.float16)
@@ -357,13 +385,23 @@ class EditAnythingLoraModel:
         return full_img, res
 
     @torch.inference_mode()
-    def process(self, condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+    def process(self, source_image, enable_all_generate, mask_image, 
+                control_scale, 
+                enable_auto_prompt, prompt, a_prompt, n_prompt, 
+                num_samples, image_resolution, detect_resolution, 
+                ddim_steps, guess_mode, strength, scale, seed, eta,
+                enable_tile=True, condition_model=None):
 
+        if condition_model is None:
+            this_controlnet_path = self.default_controlnet_path
+        else:
+            this_controlnet_path = config_dict[condition_model]
         input_image = source_image["image"]
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
-                    self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
+                    self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate, self.extra_inpaint)
+
                 self.defalut_enable_all_generate = enable_all_generate
             if enable_all_generate:
                 print("source_image",
@@ -372,13 +410,13 @@ class EditAnythingLoraModel:
                     (input_image.shape[0], input_image.shape[1], 3))*255
             else:
                 mask_image = source_image["mask"]
-        if self.default_controlnet_path != config_dict[condition_model]:
-            print("To Use:", config_dict[condition_model],
+        if self.default_controlnet_path != this_controlnet_path:
+            print("To Use:", this_controlnet_path,
                   "Current:", self.default_controlnet_path)
-            print("Change condition model to:", config_dict[condition_model])
+            print("Change condition model to:", this_controlnet_path)
             self.pipe = obtain_generation_model(
-                self.base_model_path, self.lora_model_path, config_dict[condition_model], enable_all_generate, self.extra_inpaint)
-            self.default_controlnet_path = config_dict[condition_model]
+                self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate, self.extra_inpaint)
+            self.default_controlnet_path = this_controlnet_path
             torch.cuda.empty_cache()
 
         with torch.no_grad():
@@ -411,11 +449,9 @@ class EditAnythingLoraModel:
             control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
             mask_image = HWC3(mask_image.astype(np.uint8))
-            mask_image = cv2.resize(
+            mask_image_tmp = cv2.resize(
                 mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
-            if self.extra_inpaint:
-                inpaint_image = make_inpaint_condition(img, mask_image)
-            mask_image = Image.fromarray(mask_image)
+            mask_image = Image.fromarray(mask_image_tmp)
 
             if seed == -1:
                 seed = random.randint(0, 65535)
@@ -429,7 +465,6 @@ class EditAnythingLoraModel:
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds] * num_samples, dim=0)
             if enable_all_generate and self.extra_inpaint:
-                print(control.shape, control_scale)
                 self.pipe.safety_checker = lambda images, clip_input: (
                     images, False)
                 x_samples = self.pipe(
@@ -439,24 +474,19 @@ class EditAnythingLoraModel:
                     generator=generator,
                     height=H,
                     width=W,
-                    image=control.type(torch.float16),
-                    controlnet_conditioning_scale=float(control_scale),
-                ).images
-            elif self.extra_inpaint:
-                x_samples = self.pipe(
-                    image=img,
-                    mask_image=mask_image,
-                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps,
-                    generator=generator,
-                    controlnet_conditioning_image=[control.type(
-                        torch.float16), inpaint_image.type(torch.float16)],
-                    height=H,
-                    width=W,
-                    controlnet_conditioning_scale=(float(control_scale), 1.0),
+                    image=[control.type(torch.float16)],
+                    controlnet_conditioning_scale=[float(control_scale)],
                 ).images
             else:
+                multi_condition_image = []
+                multi_condition_scale = []
+                multi_condition_image.append(control.type(torch.float16))
+                multi_condition_scale.append(float(control_scale))
+                if self.extra_inpaint:
+                    inpaint_image = make_inpaint_condition(img, mask_image_tmp)
+                    print(inpaint_image.shape)
+                    multi_condition_image.append(inpaint_image.type(torch.float16))
+                    multi_condition_scale.append(1.0)
                 x_samples = self.pipe(
                     image=img,
                     mask_image=mask_image,
@@ -464,13 +494,39 @@ class EditAnythingLoraModel:
                     num_images_per_prompt=num_samples,
                     num_inference_steps=ddim_steps,
                     generator=generator,
-                    controlnet_conditioning_image=control.type(torch.float16),
+                    controlnet_conditioning_image=multi_condition_image,
                     height=H,
                     width=W,
-                    controlnet_conditioning_scale=float(control_scale),
+                    controlnet_conditioning_scale=multi_condition_scale,
+                ).images
+            results = [x_samples[i] for i in range(num_samples)]
+
+            if True:      
+                img_tile = [PIL.Image.fromarray(resize_image(np.array(x_samples[i]), 1024)) for i in range(num_samples)]
+                # for each in img_tile:
+                #     print("tile",each.size)
+                prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
+                    self.tile_pipe, postive_prompt, negative_prompt, "cuda")
+                prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
+                negative_prompt_embeds = torch.cat(
+                    [negative_prompt_embeds] * num_samples, dim=0)
+                x_samples_tile = self.tile_pipe(
+                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                    num_images_per_prompt=num_samples,
+                    num_inference_steps=ddim_steps,
+                    generator=generator,
+                    height=img_tile[0].size[1],
+                    width=img_tile[0].size[0],
+                    image=img_tile,
+                    controlnet_conditioning_scale=1.0,
                 ).images
 
-            results = [x_samples[i] for i in range(num_samples)]
+                results_tile = [x_samples_tile[i] for i in range(num_samples)]
+                results = results_tile + results
+
+            
+
+            
         return [full_segmask, mask_image] + results, prompt
 
     def download_image(url):
