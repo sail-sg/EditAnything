@@ -49,12 +49,9 @@ def create_demo(process):
                     label="Images", minimum=1, maximum=12, value=2, step=1)
                 seed = gr.Slider(label="Seed", minimum=-1,
                                  maximum=2147483647, step=1, randomize=True)
+                enable_tile = gr.Checkbox(
+                    label='Tile refinement for high resolution generation.', value=True)
                 with gr.Accordion("Advanced options", open=False):
-                    condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                  value=list(
-                        config_dict.keys())[0],
-                        label='Model',
-                        multiselect=False)
                     mask_image = gr.Image(
                         source='upload', label="(Optional) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
                     image_resolution = gr.Slider(
@@ -74,8 +71,8 @@ def create_demo(process):
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
-        ips = [condition_model, source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+        ips = [source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery, result_text])
         with gr.Row():
@@ -90,6 +87,6 @@ def create_demo(process):
 
 if __name__ == '__main__':
     model = EditAnythingLoraModel(base_model_path='../chilloutmix_NiPrunedFp32Fix',
-                                  lora_model_path='../40806/mix4', use_blip=True)
+                                  lora_model_path='../40806/mix4', use_blip=True, lora_weight=0.5)
     demo = create_demo(model.process)
     demo.queue().launch(server_name='0.0.0.0')

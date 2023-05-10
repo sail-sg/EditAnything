@@ -14,7 +14,9 @@ are very welcomed!
 
 # News🔥
 
-2023/05/04 - New demos of Beauty/Handsome Edit/Generation is released! [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+2023/05/11 - Support tile model for detail refinement! [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+
+2023/05/04 - New demos of Beauty/Handsome Edit/Generation is released!
 
 2023/05/04 - ControlNet-based inpainting model on any lora model is supported now. EditAnything can operate on any base/lord models without the requirements of inpainting model.
 
