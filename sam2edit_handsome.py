@@ -4,7 +4,7 @@ from diffusers.utils import load_image
 from sam2edit_lora import EditAnythingLoraModel, config_dict, process_image_click
 
 
-def create_demo(process, process_click):
+def create_demo(process, process_image_click=None):
 
     examples = [
         ["1man, muscle,full body, vest, short straight hair, glasses, Gym, barbells, dumbbells, treadmills, boxing rings, squat racks, plates, dumbbell racks soft lighting, masterpiece, best quality, 8k uhd, film grain, Fujifilm XT3 photorealistic painting art by midjourney and greg rutkowski <lora:asianmale_v10:0.6>", "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck", 6],
@@ -20,6 +20,7 @@ def create_demo(process, process_click):
     with block as demo:
         clicked_points = gr.State([])
         origin_image = gr.State(None)
+        click_mask = gr.State(None)
         with gr.Row():
             gr.Markdown(
                 "## Generate Your Handsome powered by EditAnything https://github.com/sail-sg/EditAnything ")
@@ -95,11 +96,10 @@ def create_demo(process, process_click):
         run_button.click(fn=process, inputs=ips, outputs=[
                             result_gallery, result_text])
         
-        ip_click = [origin_image, clicked_points,
-                    enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
+        ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
         
-        run_button_click.click(fn=process_click,
+        run_button_click.click(fn=process,
                                 inputs=ip_click,
                                 outputs=[result_gallery, result_text])
         

@@ -41,7 +41,7 @@ with gr.Blocks() as demo:
                                           blip_model=blip_model,
                                           lora_weight=0.5,
                                           )
-            create_demo_beauty(model.process, model.process_click_mode)
+            create_demo_beauty(model.process, model.process_image_click)
         with gr.TabItem(' 👨‍🌾Handsome Edit/Generation'):
             model = EditAnythingLoraModel(base_model_path=os.path.join(sd_models_path, "Realistic_Vision_V2.0"),
                                           lora_model_path=None, use_blip=True, extra_inpaint=True,

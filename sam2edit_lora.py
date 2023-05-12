@@ -325,28 +325,7 @@ def show_anns(anns):
     full_img = Image.fromarray(np.uint8(full_img))
     return full_img, res
 
-def process_image_click(image: gr.Image,
-                    point_prompt: gr.Radio,
-                    clicked_points: gr.State,
-                    evt: gr.SelectData):
-    # Get the clicked coordinates
-    clicked_coords = evt.index
-    x, y = clicked_coords
 
-    # print("Clicked coordinates:", clicked_coords)
-
-    edited_image = np.array(image)
-    label = point_prompt
-
-    # Set the circle color based on the label
-    color = (0, 255, 0) if label == "Foreground" else (0, 0, 255)
-
-    # Draw the circle
-    edited_image = cv2.circle(edited_image, (x, y), 20, color, -1)
-    
-    lab = 1 if label == "Foreground" else 0
-    clicked_points.append((x, y, lab))
-    return Image.fromarray(edited_image), clicked_points
 
 
 class EditAnythingLoraModel:
@@ -425,36 +404,89 @@ class EditAnythingLoraModel:
         return masks
     
     @torch.inference_mode()
-    def process_click_mode(self, original_image, clicked_points,
-                           enable_all_generate, mask_image, 
-                           control_scale, 
-                           enable_auto_prompt, prompt, a_prompt, n_prompt, 
-                           num_samples, image_resolution, detect_resolution, 
-                           ddim_steps, guess_mode, strength, scale, seed, eta,
-                           enable_tile=True, condition_model=None):
-        
+    def process_image_click(self, original_image: gr.Image,
+                    point_prompt: gr.Radio,
+                    clicked_points: gr.State,
+                    image_resolution,
+                    evt: gr.SelectData):
+        # Get the clicked coordinates
+        clicked_coords = evt.index
+        x, y = clicked_coords
+        label = point_prompt
+        lab = 1 if label == "Foreground" else 0
+        clicked_points.append((x, y, lab))
+
         input_image = np.array(original_image, dtype=np.uint8)
+        H, W, C = img.shape
         input_image = HWC3(input_image)
         img = resize_image(input_image, image_resolution)
         
-        if mask_image is None:
-            if len(clicked_points)>0:
-                # Update the clicked_points
-                resized_points = resize_points(clicked_points,
-                                                input_image.shape,
-                                                image_resolution)
-                mask_click_np = self.get_click_mask(img, resized_points)
-                
-                # Convert mask_click_np to HWC format
-                mask_image = np.transpose(mask_click_np, (1, 2, 0))*255.0
-            else: mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
+
+        # Update the clicked_points
+        resized_points = resize_points(clicked_points,
+                                    input_image.shape,
+                                    image_resolution)
+        mask_click_np = self.get_click_mask(img, resized_points)
+
+        # Convert mask_click_np to HWC format
+        mask_image = np.transpose(mask_click_np, (1, 2, 0)) * 255.0
+
+        mask_image = HWC3(mask_image.astype(np.uint8))
+        mask_image = cv2.resize(
+            mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
+        # mask_image = Image.fromarray(mask_image_tmp)
+
+        # Draw circles for all clicked points
+        edited_image = input_image
+        for x, y, lab in clicked_points:
+            # Set the circle color based on the label
+            color = (0, 255, 0) if lab == 1 else (0, 0, 255)
+
+            # Draw the circle
+            edited_image = cv2.circle(edited_image, (x, y), 20, color, -1)
+
+        # Set the opacity for the mask_image and edited_image
+        opacity_mask = 0.3
+        opacity_edited = 1 - opacity_mask
+
+        # Combine the edited_image and the mask_image using cv2.addWeighted()
+        overlay_image = cv2.addWeighted(edited_image, opacity_edited, mask_image, opacity_mask, 0)
+
+        return Image.fromarray(overlay_image), clicked_points, Image.fromarray(mask_image)
+
+
+    
+    # @torch.inference_mode()
+    # def process_click_mode(self, original_image, clicked_points,
+    #                        enable_all_generate, mask_image, 
+    #                        control_scale, 
+    #                        enable_auto_prompt, prompt, a_prompt, n_prompt, 
+    #                        num_samples, image_resolution, detect_resolution, 
+    #                        ddim_steps, guess_mode, strength, scale, seed, eta,
+    #                        enable_tile=True, condition_model=None):
         
-        return self.process(input_image, enable_all_generate, mask_image, 
-                            control_scale, 
-                            enable_auto_prompt, prompt, a_prompt, n_prompt, 
-                            num_samples, image_resolution, detect_resolution, 
-                            ddim_steps, guess_mode, strength, scale, seed, eta,
-                            enable_tile, condition_model)
+    #     input_image = np.array(original_image, dtype=np.uint8)
+    #     input_image = HWC3(input_image)
+    #     img = resize_image(input_image, image_resolution)
+        
+    #     if mask_image is None:
+    #         if len(clicked_points)>0:
+    #             # Update the clicked_points
+    #             resized_points = resize_points(clicked_points,
+    #                                             input_image.shape,
+    #                                             image_resolution)
+    #             mask_click_np = self.get_click_mask(img, resized_points)
+                
+    #             # Convert mask_click_np to HWC format
+    #             mask_image = np.transpose(mask_click_np, (1, 2, 0))*255.0
+    #         else: mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
+        
+    #     return self.process(input_image, enable_all_generate, mask_image, 
+    #                         control_scale, 
+    #                         enable_auto_prompt, prompt, a_prompt, n_prompt, 
+    #                         num_samples, image_resolution, detect_resolution, 
+    #                         ddim_steps, guess_mode, strength, scale, seed, eta,
+    #                         enable_tile, condition_model)
 
     @torch.inference_mode()
     def process(self, source_image, enable_all_generate, mask_image, 

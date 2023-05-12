@@ -4,7 +4,7 @@ from diffusers.utils import load_image
 from sam2edit_lora import EditAnythingLoraModel, config_dict, process_image_click
 
 
-def create_demo(process, process_click):
+def create_demo(process, process_image_click=None):
 
 
 
@@ -16,6 +16,7 @@ def create_demo(process, process_click):
     with block as demo:
         clicked_points = gr.State([])
         origin_image = gr.State(None)
+        click_mask = gr.State(None)
         with gr.Row():
             gr.Markdown(
                 "## EditAnything https://github.com/sail-sg/EditAnything ")
@@ -89,11 +90,10 @@ def create_demo(process, process_click):
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery, result_text])
         
-        ip_click = [origin_image, clicked_points,
-                    enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
+        ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
         
-        run_button_click.click(fn=process_click,
+        run_button_click.click(fn=process,
                                 inputs=ip_click,
                                 outputs=[result_gallery, result_text])
         
