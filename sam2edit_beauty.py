@@ -1,10 +1,10 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 import gradio as gr
 from diffusers.utils import load_image
-from sam2edit_lora import EditAnythingLoraModel, config_dict
+from sam2edit_lora import EditAnythingLoraModel, config_dict, process_image_click
 
 
-def create_demo(process):
+def create_demo(process, process_click):
 
     examples = [
         ["dudou,1girl, beautiful face, solo, candle, brown hair, long hair, <lora:flowergirl:0.9>,ulzzang-6500-v1.1,(raw photo:1.2),((photorealistic:1.4))best quality ,masterpiece, illustration, an extremely delicate and beautiful, extremely detailed ,CG ,unity ,8k wallpaper, Amazing, finely detail, masterpiece,best quality,official art,extremely detailed CG unity 8k wallpaper,absurdres, incredibly absurdres, huge filesize, ultra-detailed, highres, extremely detailed,beautiful detailed girl, extremely detailed eyes and face, beautiful detailed eyes,cinematic lighting,1girl,see-through,looking at viewer,full body,full-body shot,outdoors,arms behind back,(chinese clothes) <lora:cuteGirlMix4_v10:1>",
@@ -25,13 +25,38 @@ def create_demo(process):
     '''
     block = gr.Blocks()
     with block as demo:
+        clicked_points = gr.State([])
+        origin_image = gr.State(None)
         with gr.Row():
             gr.Markdown(
                 "## Generate Your Beauty powered by EditAnything https://github.com/sail-sg/EditAnything ")
         with gr.Row():
             with gr.Column():
-                source_image = gr.Image(
-                    source='upload', label="Image (Upload an image and cover the region you want to edit with sketch)",  type="numpy", tool="sketch")
+            
+                with gr.Tab("Brush"):
+                    source_image_brush = gr.Image(
+                        source='upload',
+                        label="Image (Upload an image and cover the region you want to edit with sketch)",
+                        type="numpy", tool="sketch"
+                    )
+                    run_button = gr.Button(label="Run")
+                with gr.Tab("Click"):
+                    source_image_click = gr.Image(
+                        type="pil", interactive=True,
+                        label="Image (Upload an image and click the region you want to edit)",
+                    )
+                       
+                    with gr.Row():
+                        with gr.Row():
+                            point_prompt = gr.Radio(
+                                choices=["Foreground", "Background"],
+                                value="Foreground",
+                                label="Point Label",
+                                interactive=True)
+                        with gr.Row(scale=0.2):
+                            clear_button_click = gr.Button(value="Clear Click Points", interactive=True)
+                            clear_button_image = gr.Button(value="Clear Image", interactive=True)
+                            run_button_click = gr.Button(value="Run EditAnying", interactive=True)
                 enable_all_generate = gr.Checkbox(
                     label='Auto generation on all region.', value=False)
                 prompt = gr.Textbox(
@@ -44,7 +69,7 @@ def create_demo(process):
                                       value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
                 control_scale = gr.Slider(
                     label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
-                run_button = gr.Button(label="Run")
+                
                 num_samples = gr.Slider(
                     label="Images", minimum=1, maximum=12, value=2, step=1)
                 seed = gr.Slider(label="Seed", minimum=-1,
@@ -71,10 +96,41 @@ def create_demo(process):
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
-        ips = [source_image, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+        ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery, result_text])
+        
+        ip_click = [origin_image, clicked_points,
+                    enable_all_generate, mask_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
+                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
+        
+        run_button_click.click(fn=process_click,
+                                inputs=ip_click,
+                                outputs=[result_gallery, result_text])
+        
+        source_image_click.upload(
+            lambda image: image.copy() if image is not None else None,
+            inputs=[source_image_click],
+            outputs=[origin_image]
+        )
+        source_image_click.select(
+            process_image_click,
+            inputs=[source_image_click, point_prompt, clicked_points],
+            outputs=[source_image_click, clicked_points],
+            show_progress=True, queue=True
+        )
+        clear_button_click.click(
+            fn=lambda original_image: (original_image.copy(), []) \
+                if original_image is not None else (None, []),
+            inputs=[origin_image],
+            outputs=[source_image_click,clicked_points]
+        )
+        clear_button_image.click(
+            fn=lambda: (None, [], None, None),
+            inputs=[],
+            outputs=[source_image_click, clicked_points, result_gallery, result_text]
+        )
         with gr.Row():
             ex = gr.Examples(examples=examples, fn=process,
                              inputs=[a_prompt, n_prompt, scale],
@@ -88,5 +144,5 @@ def create_demo(process):
 if __name__ == '__main__':
     model = EditAnythingLoraModel(base_model_path='../chilloutmix_NiPrunedFp32Fix',
                                   lora_model_path='../40806/mix4', use_blip=True, lora_weight=0.5)
-    demo = create_demo(model.process)
+    demo = create_demo(model.process, model.process_click_mode)
     demo.queue().launch(server_name='0.0.0.0')

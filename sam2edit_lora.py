@@ -14,7 +14,7 @@ import random
 import os
 import requests
 from io import BytesIO
-from annotator.util import resize_image, HWC3
+from annotator.util import resize_image, HWC3, resize_points
 
 import torch
 from safetensors.torch import load_file
@@ -32,13 +32,13 @@ import PIL.Image
 # Segment-Anything init.
 # pip install git+https://github.com/facebookresearch/segment-anything.git
 try:
-    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 except ImportError:
     print('segment_anything not installed')
     result = subprocess.run(
         ['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'], check=True)
     print(f'Install segment_anything {result}')
-    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+    from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
     result = subprocess.run(
         ['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'], check=True)
@@ -52,13 +52,16 @@ config_dict = OrderedDict([
 ])
 
 
-def init_sam_model():
+def init_sam_model(sam_generator=None, mask_predictor=None):
+    if sam_generator is not None and mask_predictor is not None:
+        return sam_generator, mask_predictor
     sam_checkpoint = "models/sam_vit_h_4b8939.pth"
     model_type = "default"
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
-    sam_generator = SamAutomaticMaskGenerator(sam)
-    return sam_generator
+    sam_generator = SamAutomaticMaskGenerator(sam) if sam_generator is None else sam_generator
+    mask_predictor = SamPredictor(sam) if mask_predictor is None else mask_predictor
+    return sam_generator, mask_predictor
 
 
 def init_blip_processor():
@@ -322,6 +325,29 @@ def show_anns(anns):
     full_img = Image.fromarray(np.uint8(full_img))
     return full_img, res
 
+def process_image_click(image: gr.Image,
+                    point_prompt: gr.Radio,
+                    clicked_points: gr.State,
+                    evt: gr.SelectData):
+    # Get the clicked coordinates
+    clicked_coords = evt.index
+    x, y = clicked_coords
+
+    # print("Clicked coordinates:", clicked_coords)
+
+    edited_image = np.array(image)
+    label = point_prompt
+
+    # Set the circle color based on the label
+    color = (0, 255, 0) if label == "Foreground" else (0, 0, 255)
+
+    # Draw the circle
+    edited_image = cv2.circle(edited_image, (x, y), 20, color, -1)
+    
+    lab = 1 if label == "Foreground" else 0
+    clicked_points.append((x, y, lab))
+    return Image.fromarray(edited_image), clicked_points
+
 
 class EditAnythingLoraModel:
     def __init__(self,
@@ -334,6 +360,7 @@ class EditAnythingLoraModel:
                  extra_inpaint=True, # used when the base model is not an inpainting model.
                  tile_model=None,
                  lora_weight=1.0,
+                 mask_predictor=None
                  ):
         self.device = device
         self.use_blip = use_blip
@@ -348,11 +375,7 @@ class EditAnythingLoraModel:
             base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint, lora_weight=lora_weight)
 
         # Segment-Anything init.
-        if sam_generator is not None:
-            self.sam_generator = sam_generator
-        else:
-            self.sam_generator = init_sam_model()
-
+        self.sam_generator, self.mask_predictor = init_sam_model(sam_generator, mask_predictor)
         # BLIP2 init.
         if use_blip:
             if blip_processor is not None:
@@ -383,6 +406,55 @@ class EditAnythingLoraModel:
         masks = self.sam_generator.generate(image)
         full_img, res = show_anns(masks)
         return full_img, res
+    
+    def get_click_mask(self, image, clicked_points):
+        self.mask_predictor.set_image(image)
+        # Separate the points and labels
+        points, labels = zip(*[(point[:2], point[2]) for point in clicked_points])
+
+        # Convert the points and labels to numpy arrays
+        input_point = np.array(points)
+        input_label = np.array(labels)
+        
+        masks, _, _ = self.mask_predictor.predict(
+                        point_coords=input_point,
+                        point_labels=input_label,
+                        multimask_output=False,
+                    )
+        
+        return masks
+    
+    @torch.inference_mode()
+    def process_click_mode(self, original_image, clicked_points,
+                           enable_all_generate, mask_image, 
+                           control_scale, 
+                           enable_auto_prompt, prompt, a_prompt, n_prompt, 
+                           num_samples, image_resolution, detect_resolution, 
+                           ddim_steps, guess_mode, strength, scale, seed, eta,
+                           enable_tile=True, condition_model=None):
+        
+        input_image = np.array(original_image, dtype=np.uint8)
+        input_image = HWC3(input_image)
+        img = resize_image(input_image, image_resolution)
+        
+        if mask_image is None:
+            if len(clicked_points)>0:
+                # Update the clicked_points
+                resized_points = resize_points(clicked_points,
+                                                input_image.shape,
+                                                image_resolution)
+                mask_click_np = self.get_click_mask(img, resized_points)
+                
+                # Convert mask_click_np to HWC format
+                mask_image = np.transpose(mask_click_np, (1, 2, 0))*255.0
+            else: mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
+        
+        return self.process(input_image, enable_all_generate, mask_image, 
+                            control_scale, 
+                            enable_auto_prompt, prompt, a_prompt, n_prompt, 
+                            num_samples, image_resolution, detect_resolution, 
+                            ddim_steps, guess_mode, strength, scale, seed, eta,
+                            enable_tile, condition_model)
 
     @torch.inference_mode()
     def process(self, source_image, enable_all_generate, mask_image, 
@@ -396,7 +468,7 @@ class EditAnythingLoraModel:
             this_controlnet_path = self.default_controlnet_path
         else:
             this_controlnet_path = config_dict[condition_model]
-        input_image = source_image["image"]
+        input_image = source_image["image"] if isinstance(source_image, dict) else source_image
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
