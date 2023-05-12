@@ -29,7 +29,7 @@ with gr.Blocks() as demo:
                                           mask_predictor=mask_predictor,
                                           blip_processor=blip_processor,
                                           blip_model=blip_model)
-            create_demo_edit_anything(model.process, model.process_click_mode)
+            create_demo_edit_anything(model.process, model.process_image_click)
         with gr.TabItem(' 👩‍🦰Beauty Edit/Generation'):
             lora_model_path = hf_hub_download(
                 "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors")
@@ -49,10 +49,10 @@ with gr.Blocks() as demo:
                                           mask_predictor=mask_predictor,
                                           blip_processor=blip_processor,
                                           blip_model=blip_model)
-            create_demo_handsome(model.process, model.process_click_mode)
+            create_demo_handsome(model.process, model.process_image_click)
         # with gr.TabItem('Generate Anything'):
         #     create_demo_generate_anything()
     # with gr.Tabs():
     #     gr.Markdown(SHARED_UI_WARNING)
 
-demo.queue(api_open=False).launch(server_name='0.0.0.0')
+demo.queue(api_open=False).launch(server_name='0.0.0.0', share=True)

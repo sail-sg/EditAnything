@@ -417,7 +417,7 @@ class EditAnythingLoraModel:
         clicked_points.append((x, y, lab))
 
         input_image = np.array(original_image, dtype=np.uint8)
-        H, W, C = img.shape
+        H, W, C = input_image.shape
         input_image = HWC3(input_image)
         img = resize_image(input_image, image_resolution)
         
@@ -429,9 +429,9 @@ class EditAnythingLoraModel:
         mask_click_np = self.get_click_mask(img, resized_points)
 
         # Convert mask_click_np to HWC format
-        mask_image = np.transpose(mask_click_np, (1, 2, 0)) * 255.0
+        mask_click_np = np.transpose(mask_click_np, (1, 2, 0)) * 255.0
 
-        mask_image = HWC3(mask_image.astype(np.uint8))
+        mask_image = HWC3(mask_click_np.astype(np.uint8))
         mask_image = cv2.resize(
             mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
         # mask_image = Image.fromarray(mask_image_tmp)
@@ -440,18 +440,22 @@ class EditAnythingLoraModel:
         edited_image = input_image
         for x, y, lab in clicked_points:
             # Set the circle color based on the label
-            color = (0, 255, 0) if lab == 1 else (0, 0, 255)
+            color = (255, 0, 0) if lab == 1 else (0, 0, 255)
 
             # Draw the circle
             edited_image = cv2.circle(edited_image, (x, y), 20, color, -1)
 
         # Set the opacity for the mask_image and edited_image
-        opacity_mask = 0.3
-        opacity_edited = 1 - opacity_mask
+        opacity_mask = 0.75
+        opacity_edited = 1.0
 
         # Combine the edited_image and the mask_image using cv2.addWeighted()
-        overlay_image = cv2.addWeighted(edited_image, opacity_edited, mask_image, opacity_mask, 0)
-
+        overlay_image = cv2.addWeighted(
+            edited_image, opacity_edited, 
+            (mask_image * np.array([0/255, 255/255, 0/255])).astype(np.uint8),
+            opacity_mask, 0
+        )
+        
         return Image.fromarray(overlay_image), clicked_points, Image.fromarray(mask_image)
 
 
@@ -500,7 +504,7 @@ class EditAnythingLoraModel:
             this_controlnet_path = self.default_controlnet_path
         else:
             this_controlnet_path = config_dict[condition_model]
-        input_image = source_image["image"] if isinstance(source_image, dict) else source_image
+        input_image = source_image["image"] if isinstance(source_image, dict) else np.array(source_image, dtype=np.uint8)
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
@@ -514,6 +518,7 @@ class EditAnythingLoraModel:
                     (input_image.shape[0], input_image.shape[1], 3))*255
             else:
                 mask_image = source_image["mask"]
+        else: mask_image = np.array(mask_image, dtype=np.uint8)
         if self.default_controlnet_path != this_controlnet_path:
             print("To Use:", this_controlnet_path,
                   "Current:", self.default_controlnet_path)

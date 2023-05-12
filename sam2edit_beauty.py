@@ -116,7 +116,7 @@ def create_demo(process, process_image_click=None):
         )
         source_image_click.select(
             process_image_click,
-            inputs=[origin_image, point_prompt, clicked_points],
+            inputs=[origin_image, point_prompt, clicked_points, image_resolution],
             outputs=[source_image_click, clicked_points, click_mask],
             show_progress=True, queue=True
         )

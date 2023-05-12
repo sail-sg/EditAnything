@@ -1,7 +1,7 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 import gradio as gr
 from diffusers.utils import load_image
-from sam2edit_lora import EditAnythingLoraModel, config_dict, process_image_click
+from sam2edit_lora import EditAnythingLoraModel, config_dict
 
 
 def create_demo(process, process_image_click=None):
@@ -104,8 +104,8 @@ def create_demo(process, process_image_click=None):
         )
         source_image_click.select(
             process_image_click,
-            inputs=[source_image_click, point_prompt, clicked_points],
-            outputs=[source_image_click, clicked_points],
+            inputs=[origin_image, point_prompt, clicked_points, image_resolution],
+            outputs=[source_image_click, clicked_points, click_mask],
             show_progress=True, queue=True
         )
         clear_button_click.click(
@@ -133,6 +133,6 @@ if __name__ == '__main__':
     model = EditAnythingLoraModel(base_model_path="stabilityai/stable-diffusion-2-inpainting",
                                   controlmodel_name='LAION Pretrained(v0-4)-SD21', extra_inpaint=False,
                                   lora_model_path=None, use_blip=True)
-    demo = create_demo(model.process, model.process_click_mode)
+    demo = create_demo(model.process, model.process_image_click)
     demo.queue().launch(server_name='0.0.0.0')
 
