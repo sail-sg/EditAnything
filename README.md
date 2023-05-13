@@ -14,7 +14,9 @@ are very welcomed!
 
 # News🔥
 
-2023/05/11 - Support tile model for detail refinement! [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+2023/05/13 - Support interactive segmentation with click operation!  [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+
+2023/05/11 - Support tile model for detail refinement!
 
 2023/05/04 - New demos of Beauty/Handsome Edit/Generation is released!
 
