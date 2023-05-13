@@ -6,8 +6,6 @@ from sam2edit_lora import EditAnythingLoraModel, config_dict
 
 def create_demo(process, process_image_click=None):
 
-
-
     print("The GUI is not fully tested yet. Please open an issue if you find bugs.")
     WARNING_INFO = f'''### [NOTE]  the model is collected from the Internet for demo only, please do not use it for commercial purposes.
     We are not responsible for possible risks using this model.
@@ -28,13 +26,13 @@ def create_demo(process, process_image_click=None):
                         label="Image (Upload an image and cover the region you want to edit with sketch)",
                         type="numpy", tool="sketch"
                     )
-                    run_button = gr.Button(label="Run")
+                    run_button = gr.Button(label="Run EditAnying")
                 with gr.Tab("Click"):
                     source_image_click = gr.Image(
                         type="pil", interactive=True,
                         label="Image (Upload an image and click the region you want to edit)",
                     )
-                       
+
                     with gr.Row():
                         with gr.Row():
                             point_prompt = gr.Radio(
@@ -43,10 +41,13 @@ def create_demo(process, process_image_click=None):
                                 label="Point Label",
                                 interactive=True)
                         with gr.Row(scale=0.2):
-                            clear_button_click = gr.Button(value="Clear Click Points", interactive=True)
-                            clear_button_image = gr.Button(value="Clear Image", interactive=True)
-                            run_button_click = gr.Button(value="Run EditAnying", interactive=True)
-                            
+                            clear_button_click = gr.Button(
+                                value="Clear Click Points", interactive=True)
+                            clear_button_image = gr.Button(
+                                value="Clear Image", interactive=True)
+                            run_button_click = gr.Button(
+                                value="Run EditAnying", interactive=True)
+
                 enable_all_generate = gr.Checkbox(
                     label='Auto generation on all region.', value=False)
                 prompt = gr.Textbox(
@@ -89,14 +90,14 @@ def create_demo(process, process_image_click=None):
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery, result_text])
-        
+
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
-        
+                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile]
+
         run_button_click.click(fn=process,
-                                inputs=ip_click,
-                                outputs=[result_gallery, result_text])
-        
+                               inputs=ip_click,
+                               outputs=[result_gallery, result_text])
+
         source_image_click.upload(
             lambda image: image.copy() if image is not None else None,
             inputs=[source_image_click],
@@ -104,20 +105,22 @@ def create_demo(process, process_image_click=None):
         )
         source_image_click.select(
             process_image_click,
-            inputs=[origin_image, point_prompt, clicked_points, image_resolution],
+            inputs=[origin_image, point_prompt,
+                    clicked_points, image_resolution],
             outputs=[source_image_click, clicked_points, click_mask],
             show_progress=True, queue=True
         )
         clear_button_click.click(
-            fn=lambda original_image: (original_image.copy(), []) \
-                if original_image is not None else (None, []),
+            fn=lambda original_image: (original_image.copy(), [])
+            if original_image is not None else (None, []),
             inputs=[origin_image],
-            outputs=[source_image_click,clicked_points]
+            outputs=[source_image_click, clicked_points]
         )
         clear_button_image.click(
             fn=lambda: (None, [], None, None),
             inputs=[],
-            outputs=[source_image_click, clicked_points, result_gallery, result_text]
+            outputs=[source_image_click, clicked_points,
+                     result_gallery, result_text]
         )
         # with gr.Row():
         #     ex = gr.Examples(examples=examples, fn=process,
@@ -135,4 +138,3 @@ if __name__ == '__main__':
                                   lora_model_path=None, use_blip=True)
     demo = create_demo(model.process, model.process_image_click)
     demo.queue().launch(server_name='0.0.0.0')
-

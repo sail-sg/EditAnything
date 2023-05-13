@@ -22,7 +22,6 @@ from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
 from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
-# from utils.tmp import StableDiffusionControlNetInpaintPipeline
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
@@ -59,8 +58,10 @@ def init_sam_model(sam_generator=None, mask_predictor=None):
     model_type = "default"
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
-    sam_generator = SamAutomaticMaskGenerator(sam) if sam_generator is None else sam_generator
-    mask_predictor = SamPredictor(sam) if mask_predictor is None else mask_predictor
+    sam_generator = SamAutomaticMaskGenerator(
+        sam) if sam_generator is None else sam_generator
+    mask_predictor = SamPredictor(
+        sam) if mask_predictor is None else mask_predictor
     return sam_generator, mask_predictor
 
 
@@ -113,7 +114,6 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
             negative_ids[:, i: i + max_length])[0])
 
     return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
-
 
 
 def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
@@ -244,10 +244,12 @@ def make_inpaint_condition(image, image_mask):
     image = torch.from_numpy(image)
     return image
 
+
 def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False, extra_inpaint=True, lora_weight=1.0):
     controlnet = []
-    controlnet.append(ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)) # sam control
-    if (not generation_only) and extra_inpaint: # inpainting control
+    controlnet.append(ControlNetModel.from_pretrained(
+        controlnet_path, torch_dtype=torch.float16))  # sam control
+    if (not generation_only) and extra_inpaint:  # inpainting control
         print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
         controlnet.append(
             ControlNetModel.from_pretrained(
@@ -274,17 +276,18 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
     pipe.enable_model_cpu_offload()
     return pipe
 
+
 def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
     controlnet = ControlNetModel.from_pretrained(
-                'lllyasviel/control_v11f1e_sd15_tile', torch_dtype=torch.float16) # tile controlnet
-    if base_model_path=='runwayml/stable-diffusion-v1-5' or base_model_path=='stabilityai/stable-diffusion-2-inpainting':
+        'lllyasviel/control_v11f1e_sd15_tile', torch_dtype=torch.float16)  # tile controlnet
+    if base_model_path == 'runwayml/stable-diffusion-v1-5' or base_model_path == 'stabilityai/stable-diffusion-2-inpainting':
         print("base_model_path", base_model_path)
         pipe = StableDiffusionControlNetPipeline.from_pretrained(
             "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
         pipe = StableDiffusionControlNetPipeline.from_pretrained(
-             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     if lora_model_path is not None:
         pipe = load_lora_weights(
@@ -297,7 +300,6 @@ def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
 
     pipe.enable_model_cpu_offload()
     return pipe
-
 
 
 def show_anns(anns):
@@ -326,8 +328,6 @@ def show_anns(anns):
     return full_img, res
 
 
-
-
 class EditAnythingLoraModel:
     def __init__(self,
                  base_model_path='../chilloutmix_NiPrunedFp32Fix',
@@ -336,7 +336,8 @@ class EditAnythingLoraModel:
                  blip_model=None,
                  sam_generator=None,
                  controlmodel_name='LAION Pretrained(v0-4)-SD15',
-                 extra_inpaint=True, # used when the base model is not an inpainting model.
+                 # used when the base model is not an inpainting model.
+                 extra_inpaint=True,
                  tile_model=None,
                  lora_weight=1.0,
                  mask_predictor=None
@@ -354,7 +355,8 @@ class EditAnythingLoraModel:
             base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint, lora_weight=lora_weight)
 
         # Segment-Anything init.
-        self.sam_generator, self.mask_predictor = init_sam_model(sam_generator, mask_predictor)
+        self.sam_generator, self.mask_predictor = init_sam_model(
+            sam_generator, mask_predictor)
         # BLIP2 init.
         if use_blip:
             if blip_processor is not None:
@@ -371,7 +373,8 @@ class EditAnythingLoraModel:
         if tile_model is not None:
             self.tile_pipe = tile_model
         else:
-            self.tile_pipe = obtain_tile_model(base_model_path, lora_model_path, lora_weight=lora_weight)
+            self.tile_pipe = obtain_tile_model(
+                base_model_path, lora_model_path, lora_weight=lora_weight)
 
     def get_blip2_text(self, image):
         inputs = self.blip_processor(image, return_tensors="pt").to(
@@ -385,30 +388,31 @@ class EditAnythingLoraModel:
         masks = self.sam_generator.generate(image)
         full_img, res = show_anns(masks)
         return full_img, res
-    
+
     def get_click_mask(self, image, clicked_points):
         self.mask_predictor.set_image(image)
         # Separate the points and labels
-        points, labels = zip(*[(point[:2], point[2]) for point in clicked_points])
+        points, labels = zip(*[(point[:2], point[2])
+                             for point in clicked_points])
 
         # Convert the points and labels to numpy arrays
         input_point = np.array(points)
         input_label = np.array(labels)
-        
+
         masks, _, _ = self.mask_predictor.predict(
-                        point_coords=input_point,
-                        point_labels=input_label,
-                        multimask_output=False,
-                    )
-        
+            point_coords=input_point,
+            point_labels=input_label,
+            multimask_output=False,
+        )
+
         return masks
-    
+
     @torch.inference_mode()
     def process_image_click(self, original_image: gr.Image,
-                    point_prompt: gr.Radio,
-                    clicked_points: gr.State,
-                    image_resolution,
-                    evt: gr.SelectData):
+                            point_prompt: gr.Radio,
+                            clicked_points: gr.State,
+                            image_resolution,
+                            evt: gr.SelectData):
         # Get the clicked coordinates
         clicked_coords = evt.index
         x, y = clicked_coords
@@ -420,12 +424,11 @@ class EditAnythingLoraModel:
         H, W, C = input_image.shape
         input_image = HWC3(input_image)
         img = resize_image(input_image, image_resolution)
-        
 
         # Update the clicked_points
         resized_points = resize_points(clicked_points,
-                                    input_image.shape,
-                                    image_resolution)
+                                       input_image.shape,
+                                       image_resolution)
         mask_click_np = self.get_click_mask(img, resized_points)
 
         # Convert mask_click_np to HWC format
@@ -451,52 +454,18 @@ class EditAnythingLoraModel:
 
         # Combine the edited_image and the mask_image using cv2.addWeighted()
         overlay_image = cv2.addWeighted(
-            edited_image, opacity_edited, 
+            edited_image, opacity_edited,
             (mask_image * np.array([0/255, 255/255, 0/255])).astype(np.uint8),
             opacity_mask, 0
         )
-        
+
         return Image.fromarray(overlay_image), clicked_points, Image.fromarray(mask_image)
 
-
-    
-    # @torch.inference_mode()
-    # def process_click_mode(self, original_image, clicked_points,
-    #                        enable_all_generate, mask_image, 
-    #                        control_scale, 
-    #                        enable_auto_prompt, prompt, a_prompt, n_prompt, 
-    #                        num_samples, image_resolution, detect_resolution, 
-    #                        ddim_steps, guess_mode, strength, scale, seed, eta,
-    #                        enable_tile=True, condition_model=None):
-        
-    #     input_image = np.array(original_image, dtype=np.uint8)
-    #     input_image = HWC3(input_image)
-    #     img = resize_image(input_image, image_resolution)
-        
-    #     if mask_image is None:
-    #         if len(clicked_points)>0:
-    #             # Update the clicked_points
-    #             resized_points = resize_points(clicked_points,
-    #                                             input_image.shape,
-    #                                             image_resolution)
-    #             mask_click_np = self.get_click_mask(img, resized_points)
-                
-    #             # Convert mask_click_np to HWC format
-    #             mask_image = np.transpose(mask_click_np, (1, 2, 0))*255.0
-    #         else: mask_image = np.ones((input_image.shape[0], input_image.shape[1], 3))*255
-        
-    #     return self.process(input_image, enable_all_generate, mask_image, 
-    #                         control_scale, 
-    #                         enable_auto_prompt, prompt, a_prompt, n_prompt, 
-    #                         num_samples, image_resolution, detect_resolution, 
-    #                         ddim_steps, guess_mode, strength, scale, seed, eta,
-    #                         enable_tile, condition_model)
-
     @torch.inference_mode()
-    def process(self, source_image, enable_all_generate, mask_image, 
-                control_scale, 
-                enable_auto_prompt, prompt, a_prompt, n_prompt, 
-                num_samples, image_resolution, detect_resolution, 
+    def process(self, source_image, enable_all_generate, mask_image,
+                control_scale,
+                enable_auto_prompt, prompt, a_prompt, n_prompt,
+                num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, strength, scale, seed, eta,
                 enable_tile=True, condition_model=None):
 
@@ -504,7 +473,8 @@ class EditAnythingLoraModel:
             this_controlnet_path = self.default_controlnet_path
         else:
             this_controlnet_path = config_dict[condition_model]
-        input_image = source_image["image"] if isinstance(source_image, dict) else np.array(source_image, dtype=np.uint8)
+        input_image = source_image["image"] if isinstance(
+            source_image, dict) else np.array(source_image, dtype=np.uint8)
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
@@ -518,7 +488,8 @@ class EditAnythingLoraModel:
                     (input_image.shape[0], input_image.shape[1], 3))*255
             else:
                 mask_image = source_image["mask"]
-        else: mask_image = np.array(mask_image, dtype=np.uint8)
+        else:
+            mask_image = np.array(mask_image, dtype=np.uint8)
         if self.default_controlnet_path != this_controlnet_path:
             print("To Use:", this_controlnet_path,
                   "Current:", self.default_controlnet_path)
@@ -594,7 +565,8 @@ class EditAnythingLoraModel:
                 if self.extra_inpaint:
                     inpaint_image = make_inpaint_condition(img, mask_image_tmp)
                     print(inpaint_image.shape)
-                    multi_condition_image.append(inpaint_image.type(torch.float16))
+                    multi_condition_image.append(
+                        inpaint_image.type(torch.float16))
                     multi_condition_scale.append(1.0)
                 x_samples = self.pipe(
                     image=img,
@@ -610,10 +582,9 @@ class EditAnythingLoraModel:
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
-            if True:      
-                img_tile = [PIL.Image.fromarray(resize_image(np.array(x_samples[i]), 1024)) for i in range(num_samples)]
-                # for each in img_tile:
-                #     print("tile",each.size)
+            if True:
+                img_tile = [PIL.Image.fromarray(resize_image(
+                    np.array(x_samples[i]), 1024)) for i in range(num_samples)]
                 prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
                     self.tile_pipe, postive_prompt, negative_prompt, "cuda")
                 prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
@@ -633,9 +604,6 @@ class EditAnythingLoraModel:
                 results_tile = [x_samples_tile[i] for i in range(num_samples)]
                 results = results_tile + results
 
-            
-
-            
         return [full_segmask, mask_image] + results, prompt
 
     def download_image(url):
