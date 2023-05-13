@@ -36,3 +36,20 @@ def resize_image(input_image, resolution):
     W = int(np.round(W / 64.0)) * 64
     img = cv2.resize(input_image, (W, H), interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA)
     return img
+
+def resize_points(clicked_points, original_shape, resolution):
+    original_height, original_width, _ = original_shape
+    original_height = float(original_height)
+    original_width = float(original_width)
+    
+    scale_factor = float(resolution) / min(original_height, original_width)
+    resized_points = []
+    
+    for point in clicked_points:
+        x, y, lab = point
+        resized_x = int(round(x * scale_factor))
+        resized_y = int(round(y * scale_factor))
+        resized_point = (resized_x, resized_y, lab)
+        resized_points.append(resized_point)
+    
+    return resized_points
