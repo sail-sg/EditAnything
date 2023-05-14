@@ -835,6 +835,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
+        alignment_ratio = None,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1115,12 +1116,15 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
                     progress_bar.update()
                     if callback is not None and i % callback_steps == 0:
                         callback(i, t, latents)
-                # if self.unet.config.in_channels==4:
-                #     # masking for non-inpainting models
-                #     init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, t)
-                #     latents = (init_latents_proper * mask_image) + (latents * (1 - mask_image))
 
-            if self.unet.config.in_channels==4:
+                if self.unet.config.in_channels==4 and alignment_ratio is not None:
+                    if i < len(timesteps) * alignment_ratio:
+                        # print(i, len(timesteps))
+                        # masking for non-inpainting models
+                        init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, t)
+                        latents = (init_latents_proper * mask_image) + (latents * (1 - mask_image))
+
+            if self.unet.config.in_channels==4 and (alignment_ratio==1.0 or alignment_ratio is None):
                 # fill the unmasked part with original image
                 latents = (init_masked_image_latents * mask_image) + (latents * (1 - mask_image))
 
