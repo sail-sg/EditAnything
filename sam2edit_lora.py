@@ -282,11 +282,11 @@ def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
         'lllyasviel/control_v11f1e_sd15_tile', torch_dtype=torch.float16)  # tile controlnet
     if base_model_path == 'runwayml/stable-diffusion-v1-5' or base_model_path == 'stabilityai/stable-diffusion-2-inpainting':
         print("base_model_path", base_model_path)
-        pipe = StableDiffusionControlNetPipeline.from_pretrained(
+        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        pipe = StableDiffusionControlNetPipeline.from_pretrained(
+        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     if lora_model_path is not None:
@@ -417,7 +417,7 @@ class EditAnythingLoraModel:
         clicked_coords = evt.index
         x, y = clicked_coords
         label = point_prompt
-        lab = 1 if label == "Foreground" else 0
+        lab = 1 if label == "Foreground Point" else 0
         clicked_points.append((x, y, lab))
 
         input_image = np.array(original_image, dtype=np.uint8)
@@ -464,10 +464,10 @@ class EditAnythingLoraModel:
     @torch.inference_mode()
     def process(self, source_image, enable_all_generate, mask_image,
                 control_scale,
-                enable_auto_prompt, prompt, a_prompt, n_prompt,
+                enable_auto_prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, strength, scale, seed, eta,
-                enable_tile=True, condition_model=None):
+                enable_tile=True, refine_alignment_ratio=None, condition_model=None):
 
         if condition_model is None:
             this_controlnet_path = self.default_controlnet_path
@@ -504,10 +504,10 @@ class EditAnythingLoraModel:
                 print("Generating text:")
                 blip2_prompt = self.get_blip2_text(input_image)
                 print("Generated text:", blip2_prompt)
-                if len(prompt) > 0:
-                    prompt = blip2_prompt + ',' + prompt
+                if len(a_prompt) > 0:
+                    a_prompt = blip2_prompt + ',' + a_prompt
                 else:
-                    prompt = blip2_prompt
+                    a_prompt = blip2_prompt
 
             input_image = HWC3(input_image)
 
@@ -528,23 +528,23 @@ class EditAnythingLoraModel:
             control = torch.stack([control for _ in range(num_samples)], dim=0)
             control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
-            mask_image = HWC3(mask_image.astype(np.uint8))
+            mask_imag_ori = HWC3(mask_image.astype(np.uint8))
             mask_image_tmp = cv2.resize(
-                mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
+                mask_imag_ori, (W, H), interpolation=cv2.INTER_LINEAR)
             mask_image = Image.fromarray(mask_image_tmp)
 
             if seed == -1:
                 seed = random.randint(0, 65535)
             seed_everything(seed)
             generator = torch.manual_seed(seed)
-            postive_prompt = prompt + ', ' + a_prompt
+            postive_prompt = a_prompt
             negative_prompt = n_prompt
             prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
                 self.pipe, postive_prompt, negative_prompt, "cuda")
             prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds] * num_samples, dim=0)
-            if enable_all_generate and self.extra_inpaint:
+            if enable_all_generate and not self.extra_inpaint:
                 self.pipe.safety_checker = lambda images, clip_input: (
                     images, False)
                 x_samples = self.pipe(
@@ -582,29 +582,32 @@ class EditAnythingLoraModel:
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
-            if True:
-                img_tile = [PIL.Image.fromarray(resize_image(
-                    np.array(x_samples[i]), 1024)) for i in range(num_samples)]
+            results_tile = []
+            if enable_tile:
                 prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
                     self.tile_pipe, postive_prompt, negative_prompt, "cuda")
-                prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
-                negative_prompt_embeds = torch.cat(
-                    [negative_prompt_embeds] * num_samples, dim=0)
-                x_samples_tile = self.tile_pipe(
-                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps,
-                    generator=generator,
-                    height=img_tile[0].size[1],
-                    width=img_tile[0].size[0],
-                    image=img_tile,
-                    controlnet_conditioning_scale=1.0,
-                ).images
-
-                results_tile = [x_samples_tile[i] for i in range(num_samples)]
-                results = results_tile + results
-
-        return [full_segmask, mask_image] + results, prompt
+                for i in range(num_samples):
+                    img_tile = PIL.Image.fromarray(resize_image(np.array(x_samples[i]), 1024))
+                    if i == 0:
+                        mask_image_tile = cv2.resize(
+                        mask_imag_ori, (img_tile.size[0], img_tile.size[1]), interpolation=cv2.INTER_LINEAR)
+                        mask_image_tile = Image.fromarray(mask_image_tile)
+                    x_samples_tile = self.tile_pipe(
+                        image=img_tile,
+                        mask_image=mask_image_tile,
+                        prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                        num_images_per_prompt=1,
+                        num_inference_steps=ddim_steps,
+                        generator=generator,
+                        controlnet_conditioning_image=img_tile,
+                        height=img_tile.size[1],
+                        width=img_tile.size[0],
+                        controlnet_conditioning_scale=1.0,
+                        alignment_ratio=refine_alignment_ratio,
+                    ).images
+                    results_tile+=x_samples_tile
+    
+        return results_tile, results, [full_segmask, mask_image], postive_prompt
 
     def download_image(url):
         response = requests.get(url)

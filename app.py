@@ -55,4 +55,4 @@ with gr.Blocks() as demo:
     # with gr.Tabs():
     #     gr.Markdown(SHARED_UI_WARNING)
 
-demo.queue(api_open=False).launch(server_name='0.0.0.0', share=True)
+demo.queue(api_open=False).launch(server_name='0.0.0.0', share=False)
