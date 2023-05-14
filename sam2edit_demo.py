@@ -1,7 +1,10 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 import gradio as gr
 
-def create_demo_template(process, process_image_click=None, examples=None, INFO='EditAnything https://github.com/sail-sg/EditAnything', WARNING_INFO=None):
+def create_demo_template(process, process_image_click=None, examples=None, 
+                            INFO='EditAnything https://github.com/sail-sg/EditAnything', WARNING_INFO=None,
+                            enable_auto_prompt_default=False,
+                            ):
 
     print("The GUI is not fully tested yet. Please open an issue if you find bugs.")
     block = gr.Blocks()
@@ -13,10 +16,10 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
             gr.Markdown(INFO)
         with gr.Row().style(equal_height=False):
             with gr.Column():
-                with gr.Tab("Click"):
+                with gr.Tab("Click🖱"):
                     source_image_click = gr.Image(
                         type="pil", interactive=True,
-                        label="Image (Upload an image and click the region you want to edit)",
+                        label="Image: Upload an image and click the region you want to edit.",
                     )
                     with gr.Column():
                         with gr.Row():
@@ -32,10 +35,10 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
                         with gr.Row():
                             run_button_click = gr.Button(
                                 label="Run EditAnying", interactive=True)
-                with gr.Tab("Brush"):
+                with gr.Tab("Brush🖌️"):
                     source_image_brush = gr.Image(
                         source='upload',
-                        label="Image (Upload an image and cover the region you want to edit with sketch)",
+                        label="Image: Upload an image and cover the region you want to edit with sketch",
                         type="numpy", tool="sketch"
                     )
                     run_button = gr.Button(label="Run EditAnying", interactive=True)
@@ -43,12 +46,12 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
                     enable_all_generate = gr.Checkbox(
                         label='Auto generation on all region.', value=False)
                     control_scale = gr.Slider(
-                        label="Mask Align strength (Large value means more strict alignment with SAM mask)", minimum=0, maximum=1, value=1, step=0.1)
+                        label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0, maximum=1, value=1, step=0.1)
                 with gr.Column():
                     enable_auto_prompt = gr.Checkbox(
-                        label='Auto generate text prompt from input image with BLIP2: Warning: Enable this may makes your prompt not working.', value=False)
+                        label='Auto generate text prompt from input image with BLIP2', info='Warning: Enable this may makes your prompt not working.', value=enable_auto_prompt_default)
                     a_prompt = gr.Textbox(
-                        label="Positive Prompt (Text in the expected things of edited region)", value='best quality, extremely detailed')
+                        label="Positive Prompt", info='Text in the expected things of edited region', value='best quality, extremely detailed')
                     n_prompt = gr.Textbox(label="Negative Prompt",
                                         value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, NSFW')
                 with gr.Row():
@@ -58,15 +61,17 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
                                     maximum=2147483647, step=1, randomize=True)
                 with gr.Row():
                     enable_tile = gr.Checkbox(
-                        label='Tile refinement for high resolution generation. (Slow)', value=True)
+                        label='Tile refinement for high resolution generation', info='Slow inference', value=True)
                     refine_alignment_ratio = gr.Slider(
-                        label="Alignment Strength (Larger value means more strict alignment with input image)", minimum=0.0, maximum=1.0, value=0.95, step=0.05)
+                        label="Alignment Strength", info='Large value -> strict alignment with input image. Small value -> strong global consistency', minimum=0.0, maximum=1.0, value=0.95, step=0.05)
                     
                 with gr.Accordion("Advanced options", open=False):
                     mask_image = gr.Image(
-                        source='upload', label="(Optional:Switch to Brush mode when using this!) Upload a predefined mask of edit region if you do not want to write your prompt.", type="numpy", value=None)
+                        source='upload', label="Upload a predefined mask of edit region if you do not want to write your prompt.", info="(Optional:Switch to Brush mode when using this!) ", type="numpy", value=None)
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                    refine_image_resolution = gr.Slider(
+                        label="Image Resolution", minimum=256, maximum=8192, value=1024, step=64)
                     strength = gr.Slider(
                         label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
                     guess_mode = gr.Checkbox(
@@ -80,7 +85,7 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
             with gr.Column():
                 result_gallery_refine = gr.Gallery(
-                    label='Output High quality (Tile refinement)', show_label=True, elem_id="gallery").style(grid=2, preview=False)
+                    label='Output High quality', show_label=True, elem_id="gallery").style(grid=2, preview=False)
                 result_gallery_init = gr.Gallery(
                     label='Output Low quality', show_label=True, elem_id="gallery").style(grid=2, height='auto')
                 result_gallery_ref = gr.Gallery(
@@ -88,12 +93,12 @@ def create_demo_template(process, process_image_click=None, examples=None, INFO=
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
 
         ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio]
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery_refine, result_gallery_init, result_gallery_ref, result_text])
 
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio]
+                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
 
         run_button_click.click(fn=process,
                                inputs=ip_click,

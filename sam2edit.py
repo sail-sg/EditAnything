@@ -15,7 +15,8 @@ def create_demo(process, process_image_click=None):
     '''
     WARNING_INFO = None
 
-    demo = create_demo_template(process, process_image_click, examples=examples, INFO=INFO, WARNING_INFO=WARNING_INFO)
+    demo = create_demo_template(process, process_image_click, examples=examples, 
+                                    INFO=INFO, WARNING_INFO=WARNING_INFO, enable_auto_prompt_default=True)
     return demo
 
 

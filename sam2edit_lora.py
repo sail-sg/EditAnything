@@ -467,7 +467,7 @@ class EditAnythingLoraModel:
                 enable_auto_prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, strength, scale, seed, eta,
-                enable_tile=True, refine_alignment_ratio=None, condition_model=None):
+                enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, condition_model=None):
 
         if condition_model is None:
             this_controlnet_path = self.default_controlnet_path
@@ -587,10 +587,11 @@ class EditAnythingLoraModel:
                 prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
                     self.tile_pipe, postive_prompt, negative_prompt, "cuda")
                 for i in range(num_samples):
-                    img_tile = PIL.Image.fromarray(resize_image(np.array(x_samples[i]), 1024))
+                    img_tile = PIL.Image.fromarray(resize_image(
+                        np.array(x_samples[i]), refine_image_resolution))
                     if i == 0:
                         mask_image_tile = cv2.resize(
-                        mask_imag_ori, (img_tile.size[0], img_tile.size[1]), interpolation=cv2.INTER_LINEAR)
+                            mask_imag_ori, (img_tile.size[0], img_tile.size[1]), interpolation=cv2.INTER_LINEAR)
                         mask_image_tile = Image.fromarray(mask_image_tile)
                     x_samples_tile = self.tile_pipe(
                         image=img_tile,
@@ -605,8 +606,8 @@ class EditAnythingLoraModel:
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
                     ).images
-                    results_tile+=x_samples_tile
-    
+                    results_tile += x_samples_tile
+
         return results_tile, results, [full_segmask, mask_image], postive_prompt
 
     def download_image(url):

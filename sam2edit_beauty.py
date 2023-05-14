@@ -27,7 +27,8 @@ def create_demo(process, process_image_click=None):
     We are not responsible for possible risks using this model.
     Lora model from https://civitai.com/models/14171/cutegirlmix4 Thanks!
     '''
-    demo = create_demo_template(process, process_image_click, examples=examples, INFO=INFO, WARNING_INFO=WARNING_INFO)
+    demo = create_demo_template(process, process_image_click,
+                                examples=examples, INFO=INFO, WARNING_INFO=WARNING_INFO)
     return demo
 
 
@@ -36,8 +37,8 @@ if __name__ == '__main__':
     lora_model_path = hf_hub_download(
         "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors")
     model = EditAnythingLoraModel(base_model_path=os.path.join(sd_models_path, "chilloutmix_NiPrunedFp32Fix"),
-                                    lora_model_path=lora_model_path, use_blip=True, extra_inpaint=True,
-                                    lora_weight=0.5,
-                                    )
+                                  lora_model_path=lora_model_path, use_blip=True, extra_inpaint=True,
+                                  lora_weight=0.5,
+                                  )
     demo = create_demo(model.process, model.process_image_click)
     demo.queue().launch(server_name='0.0.0.0')
