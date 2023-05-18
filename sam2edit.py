@@ -22,7 +22,7 @@ def create_demo(process, process_image_click=None):
 
 if __name__ == '__main__':
     model = EditAnythingLoraModel(base_model_path="stabilityai/stable-diffusion-2",
-                                  controlmodel_name='LAION Pretrained(v0-4)-SD21', extra_inpaint=True,
+                                  controlmodel_name='LAION Pretrained(v0-4)-SD21', extra_inpaint=False,
                                   lora_model_path=None, use_blip=True)
     demo = create_demo(model.process, model.process_image_click)
     demo.queue().launch(server_name='0.0.0.0')

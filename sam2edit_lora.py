@@ -256,7 +256,7 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
                 'lllyasviel/control_v11p_sd15_inpaint', torch_dtype=torch.float16)  # inpainting controlnet
         )
 
-    if generation_only:
+    if generation_only and extra_inpaint:
         pipe = StableDiffusionControlNetPipeline.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
@@ -466,7 +466,7 @@ class EditAnythingLoraModel:
                 control_scale,
                 enable_auto_prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, detect_resolution,
-                ddim_steps, guess_mode, strength, scale, seed, eta,
+                ddim_steps, guess_mode, scale, seed, eta,
                 enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, condition_model=None):
 
         if condition_model is None:
@@ -544,7 +544,7 @@ class EditAnythingLoraModel:
             prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds] * num_samples, dim=0)
-            if enable_all_generate and not self.extra_inpaint:
+            if enable_all_generate and self.extra_inpaint:
                 self.pipe.safety_checker = lambda images, clip_input: (
                     images, False)
                 x_samples = self.pipe(
@@ -556,6 +556,7 @@ class EditAnythingLoraModel:
                     width=W,
                     image=[control.type(torch.float16)],
                     controlnet_conditioning_scale=[float(control_scale)],
+                    guidance_scale=scale,
                 ).images
             else:
                 multi_condition_image = []
@@ -579,6 +580,7 @@ class EditAnythingLoraModel:
                     height=H,
                     width=W,
                     controlnet_conditioning_scale=multi_condition_scale,
+                    guidance_scale=scale,
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -605,6 +607,7 @@ class EditAnythingLoraModel:
                         width=img_tile.size[0],
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
+                        guidance_scale=scale,
                     ).images
                     results_tile += x_samples_tile
 

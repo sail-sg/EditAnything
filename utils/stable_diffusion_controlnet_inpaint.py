@@ -1046,7 +1046,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
                 do_classifier_free_guidance,
             )
         if self.unet.config.in_channels==4:
-            init_masked_image_latents, _ = self.prepare_masked_image_latents(
+            init_masked_image_latents = self.prepare_masked_image_latents(
                 image,
                 batch_size * num_images_per_prompt,
                 height,
@@ -1055,8 +1055,10 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
                 device,
                 generator,
                 do_classifier_free_guidance,
-            ).chunk(2)
-            print(type(mask_image), mask_image.shape)
+            )
+            if do_classifier_free_guidance:
+                init_masked_image_latents, _ = init_masked_image_latents.chunk(2)
+            # print(type(mask_image), mask_image.shape)
             _, _, w, h = mask_image.shape
             mask_image = torch.nn.functional.interpolate(mask_image, ((w // 8, h // 8)), mode='nearest')
             mask_image = mask_image.to(latents.device).type_as(latents)
