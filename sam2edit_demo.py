@@ -72,8 +72,6 @@ def create_demo_template(process, process_image_click=None, examples=None,
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
                     refine_image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=8192, value=1024, step=64)
-                    strength = gr.Slider(
-                        label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
                     guess_mode = gr.Checkbox(
                         label='Guess Mode', value=False)
                     detect_resolution = gr.Slider(
@@ -93,12 +91,12 @@ def create_demo_template(process, process_image_click=None, examples=None,
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
 
         ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
+               detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery_refine, result_gallery_init, result_gallery_ref, result_text])
 
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
+                    detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
 
         run_button_click.click(fn=process,
                                inputs=ip_click,
