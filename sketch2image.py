@@ -106,8 +106,7 @@ def create_demo():
 
     from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
 
-    def process_sketch(canvas_data, binary_matrixes):
-        nonlocal colors
+    def process_sketch(canvas_data):
         base64_img = canvas_data['image']
         image_data = base64.b64decode(base64_img.split(',')[1])
         image = Image.open(BytesIO(image_data)).convert("RGB")
@@ -128,13 +127,12 @@ def create_demo():
         res[:, :, 0] = colors_map % 256
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
-        binary_matrixes['sketch'] = res
-        return [gr.update(visible=True), binary_matrixes]
+        return res
 
-    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+    def process(condition_model, canvas_data, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
                 image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
-
+        input_image = process_sketch(canvas_data)
         global default_controlnet_path
         global pipe
         print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
@@ -146,7 +144,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image['sketch'])
+            input_image = HWC3(input_image)
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
@@ -193,13 +191,11 @@ def create_demo():
             with gr.Column():
                 canvas_data = gr.JSON(value={}, visible=False)
                 canvas = gr.HTML(canvas_html)
-                binary_matrixes = gr.State(value={}, visible=False)
-                colors = []
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
-                button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
+                # button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-            with gr.Column(visible=False) as post_sketch:
+            with gr.Column(visible=True) as post_sketch:
                 prompt = gr.Textbox(label="Prompt (Optional)")
                 run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
@@ -236,9 +232,8 @@ def create_demo():
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
-        button_run.click(process_sketch, inputs=[canvas_data, binary_matrixes],
-                         outputs=[post_sketch, binary_matrixes], _js=get_js_colors, queue=False)
-        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+
+        ips = [condition_model, canvas_data, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
