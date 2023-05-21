@@ -146,7 +146,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image[0])
+            input_image = HWC3(input_image)
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
@@ -238,7 +238,7 @@ def create_demo():
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
                          outputs=[post_sketch], _js=get_js_colors, queue=False)
-        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+        ips = [condition_model, binary_matrixes[0], control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
