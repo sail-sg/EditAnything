@@ -131,7 +131,7 @@ def create_demo():
 
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
-                image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+                image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         global default_controlnet_path
         global pipe
@@ -219,8 +219,6 @@ def create_demo():
                     strength = gr.Slider(
                         label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
                     guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                    # detect_resolution = gr.Slider(
-                    #     label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
                     ddim_steps = gr.Slider(
                         label="Steps", minimum=1, maximum=100, value=20, step=1)
                     scale = gr.Slider(
@@ -240,8 +238,7 @@ def create_demo():
         button_run.click(process_sketch, inputs=[canvas_data, binary_matrixes],
                          outputs=[post_sketch, binary_matrixes, *colors], _js=get_js_colors, queue=False)
         ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
-               image_resolution,
-               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+               image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
         return demo
