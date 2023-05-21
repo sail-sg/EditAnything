@@ -145,7 +145,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image['sketch'])
+            input_image = HWC3(input_image)
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
