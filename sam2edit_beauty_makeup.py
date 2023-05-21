@@ -39,6 +39,7 @@ if __name__ == '__main__':
     model = EditAnythingLoraModel(base_model_path=os.path.join(sd_models_path, "chilloutmix_NiPrunedFp32Fix"),
                                   lora_model_path=lora_model_path, use_blip=True, extra_inpaint=True,
                                   lora_weight=0.5,
+                                  alpha_mixing=True,
                                   )
     demo = create_demo(model.process, model.process_image_click)
     demo.queue().launch(server_name='0.0.0.0', server_port=7860, share=True)

@@ -21,11 +21,13 @@ from safetensors.torch import load_file
 from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
-from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
+from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline, \
+    StableDiffusionControlNetInpaintMixingPipeline
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
 from diffusers import ControlNetModel, DiffusionPipeline
+from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 import PIL.Image
 
 # Segment-Anything init.
@@ -120,8 +122,8 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
     LORA_PREFIX_UNET = "lora_unet"
     LORA_PREFIX_TEXT_ENCODER = "lora_te"
     # load LoRA weight from .safetensors
+    print('device: {}'.format(device))
     if isinstance(checkpoint_path, str):
-
         state_dict = load_file(checkpoint_path, device=device)
 
         updates = defaultdict(dict)
@@ -174,7 +176,7 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
                     3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
             else:
                 curr_layer.weight.data += multiplier * \
-                    alpha * torch.mm(weight_up, weight_down)
+                                          alpha * torch.mm(weight_up, weight_down)
     else:
         for ckptpath in checkpoint_path:
             state_dict = load_file(ckptpath, device=device)
@@ -228,7 +230,7 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
                         3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
                 else:
                     curr_layer.weight.data += multiplier * \
-                        alpha * torch.mm(weight_up, weight_down)
+                                              alpha * torch.mm(weight_up, weight_down)
     return pipeline
 
 
@@ -245,7 +247,9 @@ def make_inpaint_condition(image, image_mask):
     return image
 
 
-def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False, extra_inpaint=True, lora_weight=1.0):
+def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, generation_only=False,
+                            extra_inpaint=True,
+                            lora_weight=1.0):
     controlnet = []
     controlnet.append(ControlNetModel.from_pretrained(
         controlnet_path, torch_dtype=torch.float16))  # sam control
@@ -261,9 +265,12 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         )
+        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
@@ -318,7 +325,7 @@ def show_anns(anns):
         map[m != 0] = i + 1
         color_mask = np.random.random((1, 3)).tolist()[0]
         full_img[m != 0] = color_mask
-    full_img = full_img*255
+    full_img = full_img * 255
     # anno encoding from https://github.com/LUSSeg/ImageNet-S
     res = np.zeros((map.shape[0], map.shape[1], 3))
     res[:, :, 0] = map % 256
@@ -340,6 +347,7 @@ class EditAnythingLoraModel:
                  extra_inpaint=True,
                  tile_model=None,
                  lora_weight=1.0,
+                 alpha_mixing=None,
                  mask_predictor=None
                  ):
         self.device = device
@@ -351,8 +359,10 @@ class EditAnythingLoraModel:
         self.lora_model_path = lora_model_path
         self.defalut_enable_all_generate = False
         self.extra_inpaint = extra_inpaint
+
         self.pipe = obtain_generation_model(
-            base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False, extra_inpaint=extra_inpaint, lora_weight=lora_weight)
+            base_model_path, lora_model_path, self.default_controlnet_path, generation_only=False,
+            extra_inpaint=extra_inpaint, lora_weight=lora_weight)
 
         # Segment-Anything init.
         self.sam_generator, self.mask_predictor = init_sam_model(
@@ -393,7 +403,7 @@ class EditAnythingLoraModel:
         self.mask_predictor.set_image(image)
         # Separate the points and labels
         points, labels = zip(*[(point[:2], point[2])
-                             for point in clicked_points])
+                               for point in clicked_points])
 
         # Convert the points and labels to numpy arrays
         input_point = np.array(points)
@@ -455,7 +465,7 @@ class EditAnythingLoraModel:
         # Combine the edited_image and the mask_image using cv2.addWeighted()
         overlay_image = cv2.addWeighted(
             edited_image, opacity_edited,
-            (mask_image * np.array([0/255, 255/255, 0/255])).astype(np.uint8),
+            (mask_image * np.array([0 / 255, 255 / 255, 0 / 255])).astype(np.uint8),
             opacity_mask, 0
         )
 
@@ -467,7 +477,8 @@ class EditAnythingLoraModel:
                 enable_auto_prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, scale, seed, eta,
-                enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, condition_model=None):
+                enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, alpha_weight=0.5,
+                condition_model=None):
 
         if condition_model is None:
             this_controlnet_path = self.default_controlnet_path
@@ -478,14 +489,15 @@ class EditAnythingLoraModel:
         if mask_image is None:
             if enable_all_generate != self.defalut_enable_all_generate:
                 self.pipe = obtain_generation_model(
-                    self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate, self.extra_inpaint)
+                    self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate,
+                    self.extra_inpaint)
 
                 self.defalut_enable_all_generate = enable_all_generate
             if enable_all_generate:
                 print("source_image",
-                      source_image["mask"].shape, input_image.shape,)
+                      source_image["mask"].shape, input_image.shape, )
                 mask_image = np.ones(
-                    (input_image.shape[0], input_image.shape[1], 3))*255
+                    (input_image.shape[0], input_image.shape[1], 3)) * 255
             else:
                 mask_image = source_image["mask"]
         else:
@@ -495,7 +507,8 @@ class EditAnythingLoraModel:
                   "Current:", self.default_controlnet_path)
             print("Change condition model to:", this_controlnet_path)
             self.pipe = obtain_generation_model(
-                self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate, self.extra_inpaint)
+                self.base_model_path, self.lora_model_path, this_controlnet_path, enable_all_generate,
+                self.extra_inpaint)
             self.default_controlnet_path = this_controlnet_path
             torch.cuda.empty_cache()
 
@@ -581,6 +594,7 @@ class EditAnythingLoraModel:
                     width=W,
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
+                    alpha_weight=alpha_weight,
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -616,3 +630,4 @@ class EditAnythingLoraModel:
     def download_image(url):
         response = requests.get(url)
         return Image.open(BytesIO(response.content)).convert("RGB")
+
