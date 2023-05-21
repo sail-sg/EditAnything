@@ -114,7 +114,7 @@ def create_demo():
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
         # binary_matrixes['sketch'] = res
-        return res
+        return res, "sketch loaded."
 
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
@@ -166,7 +166,7 @@ def create_demo():
             ).images
 
             results = [x_samples[i] for i in range(num_samples)]
-        return results, prompt
+        return results, prompt, "waiting for sketch..."
 
     # disable gradio when not using GUI.
     block = gr.Blocks()
@@ -181,6 +181,7 @@ def create_demo():
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
                 button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
+                result_text1 = gr.Text()
 
             with gr.Column(visible=True) as post_sketch:
                 input_image = gr.Image(type="numpy", visible=False)
@@ -196,7 +197,7 @@ def create_demo():
                 num_samples = gr.Slider(
                     label="Images", minimum=1, maximum=12, value=1, step=1)
 
-                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
+                enable_auto_prompt = True
                 with gr.Accordion("Advanced options", open=False):
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
@@ -221,10 +222,10 @@ def create_demo():
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
-                         outputs=[input_image], _js=get_js_colors, queue=False)
+                         outputs=[input_image, result_text1], _js=get_js_colors, queue=False)
         ips = [condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text, result_text1])
         demo.load(None, None, None, _js=load_js)
         return demo
 
