@@ -99,9 +99,10 @@ def create_demo():
 
         for i in range(image_np.shape[0]):
             for j in range(image_np.shape[1]):
-                if image_np[i, j] not in color_dict:
-                    color_dict[image_np[i, j]] = len(color_dict)
-                res[i, j] = color_dict[image_np[i, j]]
+                key = tuple(image_np[i, j])
+                if key not in color_dict:
+                    color_dict[key] = len(color_dict)
+                res[i, j] = color_dict[key]
         res2[:, :, 0] = res % 256
         res2[:, :, 1] = res // 256
 
