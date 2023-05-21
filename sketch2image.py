@@ -107,7 +107,6 @@ def create_demo():
 
     def process_sketch(canvas_data):
         nonlocal binary_matrixes, colors
-        binary_matrixes = []
         base64_img = canvas_data['image']
         image_data = base64.b64decode(base64_img.split(',')[1])
         image = Image.open(BytesIO(image_data)).convert("RGB")
@@ -128,8 +127,8 @@ def create_demo():
         res[:, :, 0] = map % 256
         res[:, :, 1] = map // 256
         res.astype(np.float32)
-        binary_matrixes.append(res)
-        return [gr.update(visible=True), binary_matrixes, *colors]
+        binary_matrixes['sketch'] = res
+        return [gr.update(visible=True)]
 
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
@@ -146,7 +145,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image)
+            input_image = HWC3(input_image['sketch'])
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
@@ -193,7 +192,7 @@ def create_demo():
             with gr.Column():
                 canvas_data = gr.JSON(value={}, visible=False)
                 canvas = gr.HTML(canvas_html)
-                binary_matrixes = []
+                binary_matrixes = gr.JSON(value={}, visible=False)
                 colors = []
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
@@ -238,7 +237,7 @@ def create_demo():
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
                          outputs=[post_sketch], _js=get_js_colors, queue=False)
-        ips = [condition_model, binary_matrixes[0], control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
