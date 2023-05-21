@@ -88,14 +88,6 @@ def create_demo():
     pipe = obtain_generation_model(default_controlnet_path)
 
     def get_sam_control(image):
-        return image
-
-    from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
-
-    def process_sketch(canvas_data):
-        base64_img = canvas_data['image']
-        image_data = base64.b64decode(base64_img.split(',')[1])
-        image = Image.open(BytesIO(image_data)).convert("RGB")
         im2arr = np.array(image)
         colors = [tuple(map(int, rgb[4:-1].split(','))) for rgb in canvas_data['colors']]
         print(colors)
@@ -113,8 +105,17 @@ def create_demo():
         res[:, :, 0] = colors_map % 256
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
+        return image, res
+
+    from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
+
+    def process_sketch(canvas_data):
+        base64_img = canvas_data['image']
+        image_data = base64.b64decode(base64_img.split(',')[1])
+        image = Image.open(BytesIO(image_data)).convert("RGB")
+
         # binary_matrixes['sketch'] = res
-        return res, "sketch loaded."
+        return image, "sketch loaded."
 
     def process(condition_model, input_image, control_scale, prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
@@ -136,7 +137,7 @@ def create_demo():
             H, W, C = img.shape
 
             # the default SAM model is trained with 1024 size.
-            detected_map = get_sam_control(input_image)
+            fullseg, detected_map = get_sam_control(input_image)
 
             detected_map = HWC3(detected_map.astype(np.uint8))
             detected_map = cv2.resize(
@@ -165,7 +166,7 @@ def create_demo():
             ).images
 
             results = [x_samples[i] for i in range(num_samples)]
-        return results, prompt, "waiting for sketch..."
+        return [fullseg] + results, prompt, "waiting for sketch..."
 
     # disable gradio when not using GUI.
     block = gr.Blocks()
