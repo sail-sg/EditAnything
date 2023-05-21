@@ -170,99 +170,60 @@ def create_demo():
         return [full_segmask] + results, prompt
 
     # disable gradio when not using GUI.
-    if not use_gradio:
-        # This part is not updated, it's just a example to use it without GUI.
-        condition_model = 'shgao/edit-anything-v0-1-1'
-        image_path = "images/sa_309398.jpg"
-        input_image = Image.open(image_path)
-        input_image = np.array(input_image, dtype=np.uint8)
-        prompt = ""
-        a_prompt = 'best quality, extremely detailed'
-        n_prompt = 'longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality'
-        num_samples = 4
-        image_resolution = 512
-        detect_resolution = 512
-        ddim_steps = 100
-        guess_mode = False
-        strength = 1.0
-        scale = 9.0
-        seed = 10086
-        eta = 0.0
+    block = gr.Blocks()
+    with block as demo:
+        with gr.Row():
+            gr.Markdown(
+                "## Generate Anything")
+        with gr.Row():
+            with gr.Column():
+                image_brush = gr.Image(
+                    source='canvas',
+                    label="Image: generate with sketch",
+                    type="numpy", tool="color-sketch"
+                )
+                prompt = gr.Textbox(label="Prompt (Optional)")
+                run_button = gr.Button(label="Run")
+                condition_model = gr.Dropdown(choices=list(config_dict.keys()),
+                                              value=list(config_dict.keys())[0],
+                                              label='Model',
+                                              multiselect=False)
+                control_scale = gr.Slider(
+                    label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
+                    maximum=1, value=1, step=0.1)
+                num_samples = gr.Slider(
+                    label="Images", minimum=1, maximum=12, value=1, step=1)
 
-        outputs, full_text = process(condition_model, input_image, prompt, a_prompt, n_prompt, num_samples,
-                                     image_resolution,
-                                     detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta)
+                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
+                with gr.Accordion("Advanced options", open=False):
+                    image_resolution = gr.Slider(
+                        label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                    strength = gr.Slider(
+                        label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
+                    guess_mode = gr.Checkbox(label='Guess Mode', value=False)
+                    detect_resolution = gr.Slider(
+                        label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
+                    ddim_steps = gr.Slider(
+                        label="Steps", minimum=1, maximum=100, value=20, step=1)
+                    scale = gr.Slider(
+                        label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
+                    seed = gr.Slider(label="Seed", minimum=-1,
+                                     maximum=2147483647, step=1, randomize=True)
+                    eta = gr.Number(label="eta (DDIM)", value=0.0)
+                    a_prompt = gr.Textbox(
+                        label="Added Prompt", value='best quality, extremely detailed')
+                    n_prompt = gr.Textbox(label="Negative Prompt",
+                                          value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
-        image_list = []
-        input_image = resize_image(input_image, 512)
-        image_list.append(torch.tensor(input_image))
-        for i in range(len(outputs)):
-            each = outputs[i]
-            if type(each) is not np.ndarray:
-                each = np.array(each, dtype=np.uint8)
-            each = resize_image(each, 512)
-            print(i, each.shape)
-            image_list.append(torch.tensor(each))
-
-        image_list = torch.stack(image_list).permute(0, 3, 1, 2)
-
-        save_image(image_list, "sample.jpg", nrow=3,
-                   normalize=True, value_range=(0, 255))
-    else:
-        block = gr.Blocks()
-        with block as demo:
-            with gr.Row():
-                gr.Markdown(
-                    "## Generate Anything")
-            with gr.Row():
-                with gr.Column():
-                    image_brush = gr.Image(
-                        source='canvas',
-                        label="Image: generate with sketch",
-                        type="numpy", tool="sketch"
-                    )
-                    prompt = gr.Textbox(label="Prompt (Optional)")
-                    run_button = gr.Button(label="Run")
-                    condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                  value=list(config_dict.keys())[0],
-                                                  label='Model',
-                                                  multiselect=False)
-                    control_scale = gr.Slider(
-                        label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
-                        maximum=1, value=1, step=0.1)
-                    num_samples = gr.Slider(
-                        label="Images", minimum=1, maximum=12, value=1, step=1)
-
-                    enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
-                    with gr.Accordion("Advanced options", open=False):
-                        image_resolution = gr.Slider(
-                            label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                        strength = gr.Slider(
-                            label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
-                        guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                        detect_resolution = gr.Slider(
-                            label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
-                        ddim_steps = gr.Slider(
-                            label="Steps", minimum=1, maximum=100, value=20, step=1)
-                        scale = gr.Slider(
-                            label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                        seed = gr.Slider(label="Seed", minimum=-1,
-                                         maximum=2147483647, step=1, randomize=True)
-                        eta = gr.Number(label="eta (DDIM)", value=0.0)
-                        a_prompt = gr.Textbox(
-                            label="Added Prompt", value='best quality, extremely detailed')
-                        n_prompt = gr.Textbox(label="Negative Prompt",
-                                              value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
-
-                with gr.Column():
-                    result_gallery = gr.Gallery(
-                        label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
-                    result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, image_brush, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
-                   image_resolution,
-                   detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-            run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
-            return demo
+            with gr.Column():
+                result_gallery = gr.Gallery(
+                    label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
+                result_text = gr.Text(label='BLIP2+Human Prompt Text')
+        ips = [condition_model, image_brush, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+               image_resolution,
+               detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
+        return demo
 
 
 if __name__ == '__main__':
