@@ -225,7 +225,7 @@ def create_demo():
                     n_prompt = gr.Textbox(label="Negative Prompt",
                                           value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
-                run_button = gr.Button(label="Run", elem_id="main_button", interactive=True)
+                run_button = gr.Button(label="Run", elem_id="main_button", interactive=True, _js=get_js_colors)
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
