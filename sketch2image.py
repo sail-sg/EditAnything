@@ -15,7 +15,7 @@ import torch
 import random
 import os
 from annotator.util import resize_image, HWC3
-
+import base64
 
 def create_demo():
     MAX_COLORS = 12
