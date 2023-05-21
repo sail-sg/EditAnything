@@ -189,43 +189,44 @@ def create_demo():
                 "## Generate Anything")
         with gr.Row():
             with gr.Column():
-                canvas_data = gr.JSON(value={}, visible=False)
-                canvas = gr.HTML(canvas_html)
-                aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
-                                  visible=False)
-                # button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
+                with gr.Box(elem_id="main-image"):
+                    canvas_data = gr.JSON(value={}, visible=False)
+                    canvas = gr.HTML(canvas_html)
+                    aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
+                                      visible=False)
+                    # button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-                prompt = gr.Textbox(label="Prompt (Optional)")
-                condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                              value=list(config_dict.keys())[0],
-                                              label='Model',
-                                              multiselect=False)
-                control_scale = gr.Slider(
-                    label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
-                    maximum=1, value=1, step=0.1)
-                num_samples = gr.Slider(
-                    label="Images", minimum=1, maximum=12, value=1, step=1)
+                    prompt = gr.Textbox(label="Prompt (Optional)")
+                    condition_model = gr.Dropdown(choices=list(config_dict.keys()),
+                                                  value=list(config_dict.keys())[0],
+                                                  label='Model',
+                                                  multiselect=False)
+                    control_scale = gr.Slider(
+                        label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
+                        maximum=1, value=1, step=0.1)
+                    num_samples = gr.Slider(
+                        label="Images", minimum=1, maximum=12, value=1, step=1)
 
-                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
-                with gr.Accordion("Advanced options", open=False):
-                    image_resolution = gr.Slider(
-                        label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                    strength = gr.Slider(
-                        label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
-                    guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                    ddim_steps = gr.Slider(
-                        label="Steps", minimum=1, maximum=100, value=20, step=1)
-                    scale = gr.Slider(
-                        label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                    seed = gr.Slider(label="Seed", minimum=-1,
-                                     maximum=2147483647, step=1, randomize=True)
-                    eta = gr.Number(label="eta (DDIM)", value=0.0)
-                    a_prompt = gr.Textbox(
-                        label="Added Prompt", value='best quality, extremely detailed')
-                    n_prompt = gr.Textbox(label="Negative Prompt",
-                                          value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+                    enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
+                    with gr.Accordion("Advanced options", open=False):
+                        image_resolution = gr.Slider(
+                            label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                        strength = gr.Slider(
+                            label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
+                        guess_mode = gr.Checkbox(label='Guess Mode', value=False)
+                        ddim_steps = gr.Slider(
+                            label="Steps", minimum=1, maximum=100, value=20, step=1)
+                        scale = gr.Slider(
+                            label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
+                        seed = gr.Slider(label="Seed", minimum=-1,
+                                         maximum=2147483647, step=1, randomize=True)
+                        eta = gr.Number(label="eta (DDIM)", value=0.0)
+                        a_prompt = gr.Textbox(
+                            label="Added Prompt", value='best quality, extremely detailed')
+                        n_prompt = gr.Textbox(label="Negative Prompt",
+                                              value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
-                run_button = gr.Button(label="Run", elem_id="main_button", interactive=True, _js=get_js_colors)
+                    run_button = gr.Button(label="Run", elem_id="main_button", interactive=True)
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
@@ -234,7 +235,7 @@ def create_demo():
 
         ips = [condition_model, canvas_data, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text], _js=get_js_colors)
         demo.load(None, None, None, _js=load_js)
         return demo
 
