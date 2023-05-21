@@ -88,21 +88,7 @@ def create_demo():
     pipe = obtain_generation_model(default_controlnet_path)
 
     def get_sam_control(image):
-        image_np = np.array(image)
-        res = np.zeros((image_np.shape[0], image_np.shape[1]), dtype=np.uint16)
-        res2 = np.zeros((image_np.shape[0], image_np.shape[1], 3))
-        color_dict = {}
-
-        for i in range(image_np.shape[0]):
-            for j in range(image_np.shape[1]):
-                key = tuple(image_np[i, j])
-                if key not in color_dict:
-                    color_dict[key] = len(color_dict)
-                res[i, j] = color_dict[key]
-        res2[:, :, 0] = res % 256
-        res2[:, :, 1] = res // 256
-        print(color_dict)
-        return image, res2.astype(np.float32)
+        return image
 
     from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
 
@@ -151,7 +137,7 @@ def create_demo():
             H, W, C = img.shape
 
             # the default SAM model is trained with 1024 size.
-            full_segmask, detected_map = get_sam_control(input_image)
+            detected_map = get_sam_control(input_image)
 
             detected_map = HWC3(detected_map.astype(np.uint8))
             detected_map = cv2.resize(
@@ -192,7 +178,6 @@ def create_demo():
             with gr.Column():
                 canvas_data = gr.JSON(value={}, visible=False)
                 canvas = gr.HTML(canvas_html)
-                binary_matrixes = gr.State(value={}, visible=False)
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
                 button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
