@@ -89,8 +89,6 @@ def create_demo():
 
     def get_sam_control(image):
         im2arr = np.array(image)
-        colors = [tuple(map(int, rgb[4:-1].split(','))) for rgb in canvas_data['colors']]
-        print(colors)
         colors_map, res = None, None
         ptr = 0
         for color in colors:
@@ -110,10 +108,12 @@ def create_demo():
     from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
 
     def process_sketch(canvas_data):
+        nonlocal colors
         base64_img = canvas_data['image']
         image_data = base64.b64decode(base64_img.split(',')[1])
         image = Image.open(BytesIO(image_data)).convert("RGB")
-
+        colors = [tuple(map(int, rgb[4:-1].split(','))) for rgb in canvas_data['colors']]
+        print(colors)
         # binary_matrixes['sketch'] = res
         return image, "sketch loaded."
 
@@ -171,6 +171,7 @@ def create_demo():
     # disable gradio when not using GUI.
     block = gr.Blocks()
     with block as demo:
+        colors = []
         with gr.Row():
             gr.Markdown(
                 "## Generate Anything")
