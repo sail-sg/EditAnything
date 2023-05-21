@@ -128,10 +128,8 @@ def create_demo():
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
 
-            print("Generating SAM seg:")
             # the default SAM model is trained with 1024 size.
-            full_segmask, detected_map = get_sam_control(
-                resize_image(input_image, detect_resolution))
+            full_segmask, detected_map = get_sam_control(input_image)
 
             detected_map = HWC3(detected_map.astype(np.uint8))
             detected_map = cv2.resize(
