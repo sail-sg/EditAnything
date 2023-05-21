@@ -104,7 +104,8 @@ def create_demo():
         return image, res2.astype(np.float32)
 
     from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
-    def process_sketch(canvas_data, binary_matrixes):
+
+    def process_sketch(binary_matrixes, canvas_data):
         binary_matrixes.clear()
         base64_img = canvas_data['image']
         image_data = base64.b64decode(base64_img.split(',')[1])
@@ -234,7 +235,7 @@ def create_demo():
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
-        button_run.click(process_sketch, inputs=[canvas_data, binary_matrixes],
+        button_run.click(process_sketch, inputs=[binary_matrixes, canvas_data],
                          outputs=[post_sketch, binary_matrixes, *colors], _js=get_js_colors, queue=False)
         ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
