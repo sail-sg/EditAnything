@@ -18,9 +18,45 @@ from annotator.util import resize_image, HWC3
 
 
 def create_demo():
+    MAX_COLORS = 12
+    canvas_html = "<div id='canvas-root' style='max-width:400px; margin: 0 auto'></div>"
+    load_js = """
+    async () => {
+    const url = "https://huggingface.co/datasets/radames/gradio-components/raw/main/sketch-canvas.js"
+    fetch(url)
+      .then(res => res.text())
+      .then(text => {
+        const script = document.createElement('script');
+        script.type = "module"
+        script.src = URL.createObjectURL(new Blob([text], { type: 'application/javascript' }));
+        document.head.appendChild(script);
+      });
+    }
+    """
+
+    get_js_colors = """
+    async (canvasData) => {
+      const canvasEl = document.getElementById("canvas-root");
+      return [canvasEl._data]
+    }
+    """
+
+    set_canvas_size = """
+    async (aspect) => {
+      if(aspect ==='square'){
+        _updateCanvas(512,512)
+      }
+      if(aspect ==='horizontal'){
+        _updateCanvas(768,512)
+      }
+      if(aspect ==='vertical'){
+        _updateCanvas(512,768)
+      }
+    }
+    """
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    use_blip = True
-    use_gradio = True
+    # aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio", visible=False if is_shared_ui else True)
 
     # Diffusion init using diffusers.
     # diffusers==0.14.0 required.
@@ -49,47 +85,6 @@ def create_demo():
     global default_controlnet_path
     default_controlnet_path = config_dict['LAION Pretrained(v0-4)']
     pipe = obtain_generation_model(default_controlnet_path)
-
-    # Segment-Anything init.
-    # pip install git+https://github.com/facebookresearch/segment-anything.git
-    try:
-        from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-    except ImportError:
-        print('segment_anything not installed')
-        result = subprocess.run(['pip', 'install', 'git+https://github.com/facebookresearch/segment-anything.git'],
-                                check=True)
-        print(f'Install segment_anything {result}')
-
-    # if not os.path.exists('./models/sam_vit_h_4b8939.pth'):
-    #     result = subprocess.run(
-    #         ['wget', 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', '-P', 'models'],
-    #         check=True)
-    #     print(f'Download sam_vit_h_4b8939.pth {result}')
-    # sam_checkpoint = "models/sam_vit_h_4b8939.pth"
-    # model_type = "default"
-    # sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-    # sam.to(device=device)
-    # mask_generator = SamAutomaticMaskGenerator(sam)
-
-    # BLIP2 init.
-    # if use_blip:
-    #     # need the latest transformers
-    #     # pip install git+https://github.com/huggingface/transformers.git
-    #     from transformers import AutoProcessor, Blip2ForConditionalGeneration
-    #
-    #     processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
-    #     blip_model = Blip2ForConditionalGeneration.from_pretrained(
-    #         "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16)
-    #     blip_model.to(device)
-    #     blip_model.to(device)
-
-    def get_blip2_text(image):
-        # inputs = processor(image, return_tensors="pt").to(device, torch.float16)
-        # generated_ids = blip_model.generate(**inputs, max_new_tokens=50)
-        # generated_text = processor.batch_decode(
-        #     generated_ids, skip_special_tokens=True)[0].strip()
-        # return generated_text
-        return ""
 
     def get_sam_control(image):
         image_np = np.array(image)
@@ -170,10 +165,18 @@ def create_demo():
             with gr.Column():
                 image_brush = gr.Image(
                     source='canvas',
-                    shape=[512, 512],
+                    shape=[768, 768],
                     label="Image: generate with sketch",
                     type="numpy", tool="color-sketch"
                 )
+
+                canvas_data = gr.JSON(value={}, visible=False)
+                binary_matrixes = gr.State([])
+                canvas = gr.HTML(canvas_html)
+                colors = []
+                color_row = [None] * MAX_COLORS
+
+
                 prompt = gr.Textbox(label="Prompt (Optional)")
                 run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
