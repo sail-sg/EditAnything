@@ -93,7 +93,7 @@ def create_demo():
 
     def get_sam_control(image):
         image_np = np.array(image)
-        res = np.zeros((image_np.shape[0], image_np.shape[1], 1), dtype=np.uint16)
+        res = np.zeros((image_np.shape[0], image_np.shape[1]), dtype=np.uint16)
         res2 = np.zeros((image_np.shape[0], image_np.shape[1], 3))
         color_dict = {}
 
@@ -108,7 +108,7 @@ def create_demo():
 
         return image, res2.astype(np.float32)
 
-    def process(condition_model, input_image, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
                 image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         global default_controlnet_path
@@ -162,6 +162,7 @@ def create_demo():
                 generator=generator,
                 height=H,
                 width=W,
+                controlnet_conditioning_scale=[float(control_scale)],
                 image=control.type(torch.float16),
             ).images
 
@@ -226,6 +227,9 @@ def create_demo():
                                                   value=list(config_dict.keys())[0],
                                                   label='Model',
                                                   multiselect=False)
+                    control_scale = gr.Slider(
+                        label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
+                        maximum=1, value=1, step=0.1)
                     num_samples = gr.Slider(
                         label="Images", minimum=1, maximum=12, value=1, step=1)
 
@@ -254,7 +258,7 @@ def create_demo():
                     result_gallery = gr.Gallery(
                         label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                     result_text = gr.Text(label='BLIP2+Human Prompt Text')
-            ips = [condition_model, image_brush, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+            ips = [condition_model, image_brush, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
                    image_resolution,
                    detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
             run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
