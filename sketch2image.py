@@ -197,8 +197,6 @@ def create_demo():
                                   visible=False)
                 button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-                aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
-
             with gr.Column(visible=False) as post_sketch:
                 prompt = gr.Textbox(label="Prompt (Optional)")
                 run_button = gr.Button(label="Run")
@@ -235,10 +233,11 @@ def create_demo():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
+        aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data, binary_matrixes],
                          outputs=[post_sketch, binary_matrixes, *colors], _js=get_js_colors, queue=False)
-        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
-               image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+               num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
         return demo
