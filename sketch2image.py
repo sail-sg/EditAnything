@@ -193,7 +193,7 @@ def create_demo():
             with gr.Column():
                 canvas_data = gr.JSON(value={}, visible=False)
                 canvas = gr.HTML(canvas_html)
-                binary_matrixes = gr.STATE(value={}, visible=False)
+                binary_matrixes = gr.State(value={}, visible=False)
                 colors = []
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
