@@ -105,10 +105,11 @@ def create_demo():
                 res[i, j] = color_dict[key]
         res2[:, :, 0] = res % 256
         res2[:, :, 1] = res // 256
-
+        print(color_dict)
         return image, res2.astype(np.float32)
 
-    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+                num_samples,
                 image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         global default_controlnet_path
@@ -120,15 +121,7 @@ def create_demo():
             default_controlnet_path = config_dict[condition_model]
 
         with torch.no_grad():
-            if use_blip and (enable_auto_prompt or len(prompt) == 0):
-                print("Generating text:")
-                blip2_prompt = get_blip2_text(input_image)
-                print("Generated text:", blip2_prompt)
-                if len(prompt) > 0:
-                    prompt = blip2_prompt + ',' + prompt
-                else:
-                    prompt = blip2_prompt
-                print("All text:", prompt)
+            print("All text:", prompt)
 
             input_image = HWC3(input_image)
 
@@ -179,7 +172,7 @@ def create_demo():
             with gr.Column():
                 image_brush = gr.Image(
                     source='canvas',
-                    shape=[1024, 1024],
+                    shape=[512, 512],
                     label="Image: generate with sketch",
                     type="numpy", tool="color-sketch"
                 )
