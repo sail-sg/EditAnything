@@ -175,6 +175,10 @@ def create_demo():
                 canvas = gr.HTML(canvas_html)
                 colors = []
                 color_row = [None] * MAX_COLORS
+                aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
+                                  visible=False)
+
+                aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
 
 
                 prompt = gr.Textbox(label="Prompt (Optional)")
@@ -218,6 +222,7 @@ def create_demo():
                image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
+        demo.load(None, None, None, _js=load_js)
         return demo
 
 
