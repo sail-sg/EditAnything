@@ -127,12 +127,13 @@ def create_demo():
         res[:, :, 0] = colors_map % 256
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
-        return res
+        binary_matrixes['sketch'] = res
+        return [gr.update(visible=True), binary_matrixes]
 
-    def process(condition_model, canvas_data, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
                 image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
-        input_image = process_sketch(canvas_data)
+
         global default_controlnet_path
         global pipe
         print("To Use:", config_dict[condition_model], "Current:", default_controlnet_path)
@@ -144,7 +145,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image)
+            input_image = HWC3(input_image['sketch'])
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
@@ -189,53 +190,55 @@ def create_demo():
                 "## Generate Anything")
         with gr.Row():
             with gr.Column():
-                with gr.Box(elem_id="main-image"):
-                    canvas_data = gr.JSON(value={}, visible=False)
-                    canvas = gr.HTML(canvas_html)
-                    aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
-                                      visible=False)
-                    # button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
+                canvas_data = gr.JSON(value={}, visible=False)
+                canvas = gr.HTML(canvas_html)
+                binary_matrixes = gr.State(value={}, visible=False)
+                aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
+                                  visible=False)
+                button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-                    prompt = gr.Textbox(label="Prompt (Optional)")
-                    condition_model = gr.Dropdown(choices=list(config_dict.keys()),
-                                                  value=list(config_dict.keys())[0],
-                                                  label='Model',
-                                                  multiselect=False)
-                    control_scale = gr.Slider(
-                        label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
-                        maximum=1, value=1, step=0.1)
-                    num_samples = gr.Slider(
-                        label="Images", minimum=1, maximum=12, value=1, step=1)
+            with gr.Column(visible=False) as post_sketch:
+                prompt = gr.Textbox(label="Prompt (Optional)")
+                run_button = gr.Button(label="Run")
+                condition_model = gr.Dropdown(choices=list(config_dict.keys()),
+                                              value=list(config_dict.keys())[0],
+                                              label='Model',
+                                              multiselect=False)
+                control_scale = gr.Slider(
+                    label="Mask Align strength", info="Large value -> strict alignment with SAM mask", minimum=0,
+                    maximum=1, value=1, step=0.1)
+                num_samples = gr.Slider(
+                    label="Images", minimum=1, maximum=12, value=1, step=1)
 
-                    enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
-                    with gr.Accordion("Advanced options", open=False):
-                        image_resolution = gr.Slider(
-                            label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                        strength = gr.Slider(
-                            label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
-                        guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                        ddim_steps = gr.Slider(
-                            label="Steps", minimum=1, maximum=100, value=20, step=1)
-                        scale = gr.Slider(
-                            label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
-                        seed = gr.Slider(label="Seed", minimum=-1,
-                                         maximum=2147483647, step=1, randomize=True)
-                        eta = gr.Number(label="eta (DDIM)", value=0.0)
-                        a_prompt = gr.Textbox(
-                            label="Added Prompt", value='best quality, extremely detailed')
-                        n_prompt = gr.Textbox(label="Negative Prompt",
-                                              value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
+                enable_auto_prompt = gr.Checkbox(label='Auto generated BLIP2 prompt', value=True)
+                with gr.Accordion("Advanced options", open=False):
+                    image_resolution = gr.Slider(
+                        label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                    strength = gr.Slider(
+                        label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
+                    guess_mode = gr.Checkbox(label='Guess Mode', value=False)
+                    ddim_steps = gr.Slider(
+                        label="Steps", minimum=1, maximum=100, value=20, step=1)
+                    scale = gr.Slider(
+                        label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
+                    seed = gr.Slider(label="Seed", minimum=-1,
+                                     maximum=2147483647, step=1, randomize=True)
+                    eta = gr.Number(label="eta (DDIM)", value=0.0)
+                    a_prompt = gr.Textbox(
+                        label="Added Prompt", value='best quality, extremely detailed')
+                    n_prompt = gr.Textbox(label="Negative Prompt",
+                                          value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
-                    run_button = gr.Button(label="Run", elem_id="main_button", interactive=True)
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
-
-        ips = [condition_model, canvas_data, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+        button_run.click(process_sketch, inputs=[canvas_data],
+                         outputs=[post_sketch], _js=get_js_colors, queue=False)
+        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text], _js=get_js_colors)
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
         return demo
 
