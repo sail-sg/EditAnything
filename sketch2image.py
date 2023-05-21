@@ -116,9 +116,8 @@ def create_demo():
         # binary_matrixes['sketch'] = res
         return res, "sketch loaded."
 
-    def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
-                num_samples,
-                image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+    def process(condition_model, input_image, control_scale, prompt, a_prompt, n_prompt,
+                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
 
         global default_controlnet_path
         global pipe
@@ -166,7 +165,7 @@ def create_demo():
             ).images
 
             results = [x_samples[i] for i in range(num_samples)]
-        return results, prompt
+        return results, prompt, "waiting for sketch..."
 
     # disable gradio when not using GUI.
     block = gr.Blocks()
@@ -197,7 +196,7 @@ def create_demo():
                 num_samples = gr.Slider(
                     label="Images", minimum=1, maximum=12, value=1, step=1)
 
-                enable_auto_prompt = True
+                # enable_auto_prompt = True
                 with gr.Accordion("Advanced options", open=False):
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
@@ -223,9 +222,9 @@ def create_demo():
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
                          outputs=[input_image, result_text1], _js=get_js_colors, queue=False)
-        ips = [condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+        ips = [condition_model, input_image, control_scale, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text, result_text1])
         demo.load(None, None, None, _js=load_js)
         return demo
 
