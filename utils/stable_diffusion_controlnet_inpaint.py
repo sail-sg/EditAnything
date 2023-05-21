@@ -1316,7 +1316,7 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
             callback_steps: int = 1,
             cross_attention_kwargs: Optional[Dict[str, Any]] = None,
             controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
-            alignment_ratio=None,
+            alignment_ratio=0.95,
             alpha_weight=0.5,
     ):
         r"""
