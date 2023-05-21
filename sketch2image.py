@@ -162,7 +162,7 @@ def create_demo():
                 generator=generator,
                 height=H,
                 width=W,
-                controlnet_conditioning_scale=[float(control_scale)],
+                controlnet_conditioning_scale=float(control_scale),
                 image=control.type(torch.float16),
             ).images
 
