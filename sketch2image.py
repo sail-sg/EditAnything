@@ -106,7 +106,8 @@ def create_demo():
     from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
 
     def process_sketch(canvas_data):
-        binary_matrixes.clear()
+        nonlocal binary_matrixes, colors
+        binary_matrixes = []
         base64_img = canvas_data['image']
         image_data = base64.b64decode(base64_img.split(',')[1])
         image = Image.open(BytesIO(image_data)).convert("RGB")
@@ -191,8 +192,8 @@ def create_demo():
         with gr.Row():
             with gr.Column():
                 canvas_data = gr.JSON(value={}, visible=False)
-                binary_matrixes = gr.State([])
                 canvas = gr.HTML(canvas_html)
+                binary_matrixes = []
                 colors = []
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
@@ -236,7 +237,7 @@ def create_demo():
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
-                         outputs=[post_sketch, *colors], _js=get_js_colors, queue=False)
+                         outputs=[post_sketch], _js=get_js_colors, queue=False)
         ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
