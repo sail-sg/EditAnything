@@ -180,7 +180,7 @@ def create_demo():
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
                 button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
-                result_text1 = gr.Text()
+                result_text1 = gr.Text(label='sketch status:')
 
             with gr.Column(visible=True) as post_sketch:
                 input_image = gr.Image(type="numpy", visible=False)
