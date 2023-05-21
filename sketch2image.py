@@ -127,8 +127,8 @@ def create_demo():
         res[:, :, 0] = colors_map % 256
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
-        binary_matrixes['sketch'] = res
-        return [gr.update(visible=True), binary_matrixes]
+        # binary_matrixes['sketch'] = res
+        return [gr.update(visible=True)]
 
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
