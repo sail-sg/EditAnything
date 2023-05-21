@@ -1610,12 +1610,10 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
                         latents = init_latents_proper * mask_image \
                                   + ((1 - alpha_weight) * latents + alpha_weight * init_latents_proper) * (
                                           1 - mask_image)
-                        print('M1')
                     else:
                         latents = latents * mask_image \
                                   + ((1 - alpha_weight) * latents + alpha_weight * init_latents_proper) * (
                                           1 - mask_image)
-                        print('M2')
 
             # if self.unet.config.in_channels == 4 and (alignment_ratio == 1.0 or alignment_ratio is None):
             #     # fill the unmasked part with original image
