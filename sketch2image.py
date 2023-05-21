@@ -128,7 +128,7 @@ def create_demo():
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
         # binary_matrixes['sketch'] = res
-        return [gr.update(visible=True)]
+        return res
 
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
@@ -197,7 +197,8 @@ def create_demo():
                                   visible=False)
                 button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-            with gr.Column(visible=False) as post_sketch:
+            with gr.Column(visible=True) as post_sketch:
+                input_image = gr.Image(type="numpy", visible=False)
                 prompt = gr.Textbox(label="Prompt (Optional)")
                 run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
@@ -235,8 +236,8 @@ def create_demo():
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
         aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
         button_run.click(process_sketch, inputs=[canvas_data],
-                         outputs=[post_sketch], _js=get_js_colors, queue=False)
-        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
+                         outputs=[input_image], _js=get_js_colors, queue=False)
+        ips = [condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
