@@ -16,6 +16,7 @@ import random
 import os
 from annotator.util import resize_image, HWC3
 import base64
+from io import BytesIO
 
 def create_demo():
     MAX_COLORS = 12
