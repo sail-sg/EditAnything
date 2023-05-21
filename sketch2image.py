@@ -125,8 +125,8 @@ def create_demo():
                     res = np.zeros((im2arr.shape[0], im2arr.shape[1], 3))
                 colors_map[binary_matrix != 0] = ptr + 1
                 ptr += 1
-        res[:, :, 0] = map % 256
-        res[:, :, 1] = map // 256
+        res[:, :, 0] = colors_map % 256
+        res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
         binary_matrixes['sketch'] = res
         return [gr.update(visible=True)]
