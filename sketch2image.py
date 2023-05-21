@@ -195,9 +195,7 @@ def create_demo():
                                   visible=False)
                 # button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
-            with gr.Column(visible=True) as post_sketch:
                 prompt = gr.Textbox(label="Prompt (Optional)")
-                run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
                                               value=list(config_dict.keys())[0],
                                               label='Model',
@@ -227,6 +225,7 @@ def create_demo():
                     n_prompt = gr.Textbox(label="Negative Prompt",
                                           value='longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality')
 
+                run_button = gr.Button(label="Run", elem_id="main_button", interactive=True)
             with gr.Column():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
