@@ -166,7 +166,7 @@ def create_demo():
             ).images
 
             results = [x_samples[i] for i in range(num_samples)]
-        return results, prompt, "waiting for sketch..."
+        return results, prompt
 
     # disable gradio when not using GUI.
     block = gr.Blocks()
@@ -225,7 +225,7 @@ def create_demo():
                          outputs=[input_image, result_text1], _js=get_js_colors, queue=False)
         ips = [condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
-        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text, result_text1])
+        run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
         demo.load(None, None, None, _js=load_js)
         return demo
 
