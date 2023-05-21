@@ -103,6 +103,32 @@ def create_demo():
         print(color_dict)
         return image, res2.astype(np.float32)
 
+    from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
+    def process_sketch(canvas_data, binary_matrixes):
+        binary_matrixes.clear()
+        base64_img = canvas_data['image']
+        image_data = base64.b64decode(base64_img.split(',')[1])
+        image = Image.open(BytesIO(image_data)).convert("RGB")
+        im2arr = np.array(image)
+        colors = [tuple(map(int, rgb[4:-1].split(','))) for rgb in canvas_data['colors']]
+        print(colors)
+        colors_map, res = None, None
+        ptr = 0
+        for color in colors:
+            r, g, b = color
+            if any(c != 255 for c in (r, g, b)):
+                binary_matrix = np.all(im2arr == (r, g, b), axis=-1)
+                if colors_map is None:
+                    colors_map = np.zeros((im2arr.shape[0], im2arr.shape[1]), dtype=np.uint16)
+                    res = np.zeros((im2arr.shape[0], im2arr.shape[1], 3))
+                colors_map[binary_matrix != 0] = ptr + 1
+                ptr += 1
+        res[:, :, 0] = map % 256
+        res[:, :, 1] = map // 256
+        res.astype(np.float32)
+        binary_matrixes.append(res)
+        return [gr.update(visible=True), binary_matrixes, *colors]
+
     def process(condition_model, input_image, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt,
                 num_samples,
                 image_resolution, detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
@@ -118,7 +144,7 @@ def create_demo():
         with torch.no_grad():
             print("All text:", prompt)
 
-            input_image = HWC3(input_image)
+            input_image = HWC3(input_image[0])
 
             img = resize_image(input_image, image_resolution)
             H, W, C = img.shape
@@ -153,7 +179,7 @@ def create_demo():
             ).images
 
             results = [x_samples[i] for i in range(num_samples)]
-        return [full_segmask] + results, prompt
+        return results, prompt
 
     # disable gradio when not using GUI.
     block = gr.Blocks()
@@ -163,24 +189,17 @@ def create_demo():
                 "## Generate Anything")
         with gr.Row():
             with gr.Column():
-                image_brush = gr.Image(
-                    source='canvas',
-                    shape=[768, 768],
-                    label="Image: generate with sketch",
-                    type="numpy", tool="color-sketch"
-                )
-
                 canvas_data = gr.JSON(value={}, visible=False)
                 binary_matrixes = gr.State([])
                 canvas = gr.HTML(canvas_html)
                 colors = []
-                color_row = [None] * MAX_COLORS
                 aspect = gr.Radio(["square", "horizontal", "vertical"], value="square", label="Aspect Ratio",
                                   visible=False)
+                button_run = gr.Button("I've finished my sketch", elem_id="main_button", interactive=True)
 
                 aspect.change(None, inputs=[aspect], outputs=None, _js=set_canvas_size)
 
-
+            with gr.Column(visible=False) as post_sketch:
                 prompt = gr.Textbox(label="Prompt (Optional)")
                 run_button = gr.Button(label="Run")
                 condition_model = gr.Dropdown(choices=list(config_dict.keys()),
@@ -200,8 +219,8 @@ def create_demo():
                     strength = gr.Slider(
                         label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
                     guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                    detect_resolution = gr.Slider(
-                        label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
+                    # detect_resolution = gr.Slider(
+                    #     label="SAM Resolution", minimum=128, maximum=2048, value=1024, step=1)
                     ddim_steps = gr.Slider(
                         label="Steps", minimum=1, maximum=100, value=20, step=1)
                     scale = gr.Slider(
@@ -218,7 +237,9 @@ def create_demo():
                 result_gallery = gr.Gallery(
                     label='Output', show_label=False, elem_id="gallery").style(grid=2, height='auto')
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
-        ips = [condition_model, image_brush, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
+        button_run.click(process_sketch, inputs=[canvas_data, binary_matrixes],
+                         outputs=[post_sketch, binary_matrixes, *colors], _js=get_js_colors, queue=False)
+        ips = [condition_model, binary_matrixes, control_scale, enable_auto_prompt, prompt, a_prompt, n_prompt, num_samples,
                image_resolution,
                detect_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text])
