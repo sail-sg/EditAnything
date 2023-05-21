@@ -1601,7 +1601,7 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
                     if callback is not None and i % callback_steps == 0:
                         callback(i, t, latents)
 
-                if self.unet.config.in_channels == 4 and alignment_ratio is not None and i < len(timesteps) - 1:
+                if self.unet.config.in_channels == 4 and i < len(timesteps) - 1:
                     init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, timesteps[i + 1])
                     if i < len(timesteps) * alignment_ratio:
                         # print(i, len(timesteps))
