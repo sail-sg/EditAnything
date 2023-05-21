@@ -179,6 +179,7 @@ def create_demo():
             with gr.Column():
                 image_brush = gr.Image(
                     source='canvas',
+                    shape=[1024, 1024],
                     label="Image: generate with sketch",
                     type="numpy", tool="color-sketch"
                 )
