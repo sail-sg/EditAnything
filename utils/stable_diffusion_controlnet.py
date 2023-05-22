@@ -662,7 +662,7 @@ class ControlNetModel2(ControlNetModel):
         super().__init__(*args, **kwargs)
 
     @staticmethod
-    def from_pretrained(self, *args, **kwargs):
+    def from_pretrained(*args, **kwargs):
         return ControlNetModel.from_pretrained(*args, **kwargs)
 
     def forward(
