@@ -13,6 +13,7 @@ are very welcomed!
 
 
 # News🔥
+2023/05/22 - Support sketch to image by adjusting mask align strength in `sketch2image.py`!
 
 2023/05/13 - Support interactive segmentation with click operation!  [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
 
@@ -54,6 +55,38 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
+
+## Draw your Sketch and Generate your Image!🔥
+prompt: "a paint of  a  tree in the ground with a river."
+<div>
+<img width="277" alt="image" src="images/sk1.png">
+<img width="277" alt="image" src="images/sk1_ex1.png">
+<img width="277" alt="image" src="images/sk1_ex2.png">
+</div>
+
+prompt: "a paint, river, mountain, sun, cloud, beautiful field."
+<div>
+<img width="277" alt="image" src="images/sk4.png">
+<img width="277" alt="image" src="images/sk4_ex1.png">
+<img width="277" alt="image" src="images/sk4_ex2.png">
+</div>
+
+prompt: "a man, midsplit center parting hair, HD."
+<div>
+<img width="277" alt="image" src="images/sk2.png">
+<img width="277" alt="image" src="images/sk2_ex1.png">
+<img width="277" alt="image" src="images/sk2_ex2.png">
+</div>
+
+prompt: "a woman, long hair, detailed facial details, photorealistic, HD, beautiful face, solo, candle, brown hair, blue eye."
+<div>
+<img width="277" alt="image" src="images/sk3.png">
+<img width="277" alt="image" src="images/sk3_ex1.png">
+<img width="277" alt="image" src="images/sk3_ex2.png">
+</div>
+
+
+Also, you could use the generated image and sam model to refine your sketch definitely!
 
 ## Generate/Edit your beauty!!!🔥🔥🔥
 **Edit Your beauty and Generate Your beauty**
