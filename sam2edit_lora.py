@@ -625,6 +625,7 @@ class EditAnythingLoraModel:
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
                         guidance_scale=scale,
+                        alpha_weight=alpha_weight,
                     ).images
                     results_tile += x_samples_tile
 
