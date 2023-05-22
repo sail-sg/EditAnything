@@ -640,12 +640,24 @@ class StableDiffusionControlNetPipeline2(StableDiffusionControlNetPipeline):
             image = latents
             has_nsfw_concept = None
 
-        if has_nsfw_concept is None:
-            do_denormalize = [True] * image.shape[0]
-        else:
-            do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
+        if output_type == "latent":
+            image = latents
+            has_nsfw_concept = None
+        elif output_type == "pil":
+            # 8. Post-processing
+            image = self.decode_latents(latents)
 
-        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
+            # 9. Run safety checker
+            image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
+
+            # 10. Convert to PIL
+            image = self.numpy_to_pil(image)
+        else:
+            # 8. Post-processing
+            image = self.decode_latents(latents)
+
+            # 9. Run safety checker
+            image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
 
         # Offload last model to CPU
         if hasattr(self, "final_offload_hook") and self.final_offload_hook is not None:
