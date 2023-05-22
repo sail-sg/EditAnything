@@ -1,6 +1,6 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 from diffusers.utils import load_image
-from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
+from diffusers import UniPCMultistepScheduler
 from torchvision.utils import save_image
 from PIL import Image
 from pytorch_lightning import seed_everything
@@ -17,6 +17,9 @@ import os
 from annotator.util import resize_image, HWC3
 import base64
 from io import BytesIO
+
+from utils.stable_diffusion_controlnet import StableDiffusionControlNetPipeline2, ControlNetModel2
+
 
 def create_demo():
     MAX_COLORS = 12
@@ -70,9 +73,9 @@ def create_demo():
                                ])
 
     def obtain_generation_model(controlnet_path):
-        controlnet = ControlNetModel.from_pretrained(
+        controlnet = ControlNetModel2.from_pretrained(
             controlnet_path, torch_dtype=torch.float16)
-        pipe = StableDiffusionControlNetPipeline.from_pretrained(
+        pipe = StableDiffusionControlNetPipeline2.from_pretrained(
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16
         )
         # speed up diffusion process with faster scheduler and memory optimization
@@ -100,12 +103,12 @@ def create_demo():
                     res = np.zeros((im2arr.shape[0], im2arr.shape[1], 3))
                 colors_map[binary_matrix != 0] = ptr + 1
                 ptr += 1
+        white = np.all(im2arr == (255, 255, 255), axis=-1)
+        scale_map = (white != 1).astype(np.float32)
         res[:, :, 0] = colors_map % 256
         res[:, :, 1] = colors_map // 256
         res.astype(np.float32)
-        return image, res
-
-    from utils.sketch_helpers import get_high_freq_colors, color_quantization, create_binary_matrix
+        return image, res, scale_map
 
     def process_sketch(canvas_data):
         nonlocal colors
@@ -137,7 +140,7 @@ def create_demo():
             H, W, C = img.shape
 
             # the default SAM model is trained with 1024 size.
-            fullseg, detected_map = get_sam_control(input_image)
+            fullseg, detected_map, scale_map = get_sam_control(input_image)
 
             detected_map = HWC3(detected_map.astype(np.uint8))
             detected_map = cv2.resize(
@@ -147,6 +150,8 @@ def create_demo():
                 detected_map.copy()).float().cuda()
             control = torch.stack([control for _ in range(num_samples)], dim=0)
             control = einops.rearrange(control, 'b h w c -> b c h w').clone()
+
+            scale_map = torch.from_numpy(scale_map).float().cuda()
 
             if seed == -1:
                 seed = random.randint(0, 65535)
@@ -162,6 +167,7 @@ def create_demo():
                 height=H,
                 width=W,
                 controlnet_conditioning_scale=float(control_scale),
+                controlnet_conditioning_scale_map=scale_map,
                 image=control.type(torch.float16),
             ).images
 
