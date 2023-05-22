@@ -293,9 +293,12 @@ def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
             "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         )
+        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
