@@ -781,6 +781,7 @@ class ControlNetModel2(ControlNetModel):
                 down_block_res_samples = [sample * conditioning_scale for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * conditioning_scale
             else:
+                conditioning_scale = conditioning_scale[None, None]
                 down_block_res_samples = [sample * F.interpolate(conditioning_scale, sample.shape[-2:])
                                           for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * F.interpolate(conditioning_scale,
