@@ -661,6 +661,10 @@ class ControlNetModel2(ControlNetModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def from_pretrained(self, *args, **kwargs):
+        return ControlNetModel.from_pretrained(*args, **kwargs)
+
     def forward(
             self,
             sample: torch.FloatTensor,
