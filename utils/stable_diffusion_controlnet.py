@@ -786,13 +786,18 @@ class ControlNetModel2(ControlNetModel):
                 down_block_res_samples = [sample * conditioning_scale for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * conditioning_scale
             else:
-                conditioning_scale = conditioning_scale[None, None]
+                assert isinstance(conditioning_scale, torch.Tensor)
+                if len(conditioning_scale.shape) == 2:
+                    conditioning_scale = conditioning_scale[None, None]
+                elif len(conditioning_scale.shape) == 3:
+                    conditioning_scale = conditioning_scale[None]
                 down_block_res_samples = [
-                    sample * F.interpolate(conditioning_scale, list(sample.shape[-2:])).type(sample.dtype)
+                    sample * F.interpolate(conditioning_scale, sample.shape[-2:], align_corners=True).type(sample.dtype)
                     for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * \
-                                       F.interpolate(conditioning_scale, list(mid_block_res_sample.shape[-2:])).type(
-                                           sample.dtype)
+                                       F.interpolate(
+                                           conditioning_scale,
+                                           mid_block_res_sample.shape[-2:], align_corners=True).type(sample.dtype)
 
         if self.config.global_pool_conditions:
             down_block_res_samples = [
