@@ -121,7 +121,7 @@ def create_demo():
         return image, "sketch loaded."
 
     def process(condition_model, input_image, control_scale, prompt, a_prompt, n_prompt,
-                num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta):
+                num_samples, image_resolution, ddim_steps, guess_mode, use_scale_map, strength, scale, seed, eta):
 
         global default_controlnet_path
         global pipe
@@ -151,7 +151,7 @@ def create_demo():
             control = torch.stack([control for _ in range(num_samples)], dim=0)
             control = einops.rearrange(control, 'b h w c -> b c h w').clone()
 
-            scale_map = torch.from_numpy(scale_map).float().cuda()
+            scale_map = torch.from_numpy(scale_map).float().cuda() if use_scale_map else None
 
             if seed == -1:
                 seed = random.randint(0, 65535)
@@ -211,6 +211,7 @@ def create_demo():
                     strength = gr.Slider(
                         label="Control Strength", minimum=0.0, maximum=2.0, value=1.0, step=0.01)
                     guess_mode = gr.Checkbox(label='Guess Mode', value=False)
+                    use_scale_map = gr.Checkbox(label='Use scale map', value=False)
                     ddim_steps = gr.Slider(
                         label="Steps", minimum=1, maximum=100, value=20, step=1)
                     scale = gr.Slider(
@@ -231,7 +232,7 @@ def create_demo():
         button_run.click(process_sketch, inputs=[canvas_data],
                          outputs=[input_image, result_text1], _js=get_js_colors, queue=False)
         ips = [condition_model, input_image, control_scale, prompt, a_prompt, n_prompt,
-               num_samples, image_resolution, ddim_steps, guess_mode, strength, scale, seed, eta]
+               num_samples, image_resolution, ddim_steps, guess_mode, use_scale_map, strength, scale, seed, eta]
         run_button.click(fn=process, inputs=ips, outputs=[result_gallery, result_text, result_text1])
         demo.load(None, None, None, _js=load_js)
         return demo
