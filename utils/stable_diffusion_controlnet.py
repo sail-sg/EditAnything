@@ -633,13 +633,6 @@ class StableDiffusionControlNetPipeline2(StableDiffusionControlNetPipeline):
             self.controlnet.to("cpu")
             torch.cuda.empty_cache()
 
-        if not output_type == "latent":
-            image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
-            image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
-        else:
-            image = latents
-            has_nsfw_concept = None
-
         if output_type == "latent":
             image = latents
             has_nsfw_concept = None
@@ -798,7 +791,8 @@ class ControlNetModel2(ControlNetModel):
                     sample * F.interpolate(conditioning_scale, sample.shape[-2:]).type(sample.dtype)
                     for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * \
-                                       F.interpolate(conditioning_scale, mid_block_res_sample.shape[-2:]).type(sample.dtype)
+                                       F.interpolate(conditioning_scale, mid_block_res_sample.shape[-2:]).type(
+                                           sample.dtype)
 
         if self.config.global_pool_conditions:
             down_block_res_samples = [

@@ -265,12 +265,12 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
-        )
-        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         # )
+        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
@@ -293,12 +293,12 @@ def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
             "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
-        )
-        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         # )
+        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
@@ -597,7 +597,7 @@ class EditAnythingLoraModel:
                     width=W,
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
-                    alpha_weight=alpha_weight,
+                    # alpha_weight=alpha_weight,
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -625,7 +625,7 @@ class EditAnythingLoraModel:
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
                         guidance_scale=scale,
-                        alpha_weight=alpha_weight,
+                        # alpha_weight=alpha_weight,
                     ).images
                     results_tile += x_samples_tile
 
