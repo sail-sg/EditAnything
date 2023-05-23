@@ -788,10 +788,10 @@ class ControlNetModel2(ControlNetModel):
             else:
                 conditioning_scale = conditioning_scale[None, None]
                 down_block_res_samples = [
-                    sample * F.interpolate(conditioning_scale, sample.shape[-2:]).type(sample.dtype)
+                    sample * F.interpolate(conditioning_scale, list(sample.shape[-2:])).type(sample.dtype)
                     for sample in down_block_res_samples]
                 mid_block_res_sample = mid_block_res_sample * \
-                                       F.interpolate(conditioning_scale, mid_block_res_sample.shape[-2:]).type(
+                                       F.interpolate(conditioning_scale, list(mid_block_res_sample.shape[-2:])).type(
                                            sample.dtype)
 
         if self.config.global_pool_conditions:
