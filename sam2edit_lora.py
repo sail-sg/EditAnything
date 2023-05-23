@@ -21,6 +21,8 @@ from safetensors.torch import load_file
 from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
+
+from utils.stable_diffusion_controlnet import ControlNetModel2
 from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline, \
     StableDiffusionControlNetInpaintMixingPipeline
 # need the latest transformers
@@ -251,7 +253,7 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
                             extra_inpaint=True,
                             lora_weight=1.0):
     controlnet = []
-    controlnet.append(ControlNetModel.from_pretrained(
+    controlnet.append(ControlNetModel2.from_pretrained(
         controlnet_path, torch_dtype=torch.float16))  # sam control
     if (not generation_only) and extra_inpaint:  # inpainting control
         print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
@@ -265,12 +267,12 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
             base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        # pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
-        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
-        # )
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         )
+        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
@@ -285,7 +287,7 @@ def obtain_generation_model(base_model_path, lora_model_path, controlnet_path, g
 
 
 def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
-    controlnet = ControlNetModel.from_pretrained(
+    controlnet = ControlNetModel2.from_pretrained(
         'lllyasviel/control_v11f1e_sd15_tile', torch_dtype=torch.float16)  # tile controlnet
     if base_model_path == 'runwayml/stable-diffusion-v1-5' or base_model_path == 'stabilityai/stable-diffusion-2-inpainting':
         print("base_model_path", base_model_path)
@@ -293,12 +295,12 @@ def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
             "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
         )
     else:
-        # pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
-        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
-        # )
-        pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
-            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        pipe = StableDiffusionControlNetInpaintMixingPipeline.from_pretrained(
+            base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None,
         )
+        # pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
+        #     base_model_path, controlnet=controlnet, torch_dtype=torch.float16, safety_checker=None
+        # )
     if lora_model_path is not None:
         pipe = load_lora_weights(
             pipe, [lora_model_path], lora_weight, 'cpu', torch.float32)
@@ -481,7 +483,7 @@ class EditAnythingLoraModel:
                 num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, scale, seed, eta,
                 enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, alpha_weight=0.5,
-                condition_model=None):
+                use_scale_map=False, condition_model=None):
 
         if condition_model is None:
             this_controlnet_path = self.default_controlnet_path
@@ -597,7 +599,8 @@ class EditAnythingLoraModel:
                     width=W,
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
-                    # alpha_weight=alpha_weight,
+                    alpha_weight=alpha_weight,
+                    controlnet_conditioning_scale_map=use_scale_map
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -625,7 +628,8 @@ class EditAnythingLoraModel:
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
                         guidance_scale=scale,
-                        # alpha_weight=alpha_weight,
+                        alpha_weight=alpha_weight,
+                        controlnet_conditioning_scale_map=use_scale_map
                     ).images
                     results_tile += x_samples_tile
 

@@ -1287,11 +1287,6 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
 
 
 class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetInpaintPipeline):
-    # def __init__(self, *args, **kwargs):
-    #     self.alpha_mixing = kwargs['alpha_mixing']
-    #     kwargs.pop('alpha_mixing')
-    #     super().__init__(*args, **kwargs)
-
     def __call__(
             self,
             prompt: Union[str, List[str]] = None,
@@ -1317,6 +1312,7 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
             callback_steps: int = 1,
             cross_attention_kwargs: Optional[Dict[str, Any]] = None,
             controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
+            controlnet_conditioning_scale_map=None,
             alignment_ratio=0.95,
             alpha_weight=0.5,
     ):
@@ -1453,6 +1449,14 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
         image = prepare_image(image)
 
         mask_image = prepare_mask_image(mask_image)
+
+        if controlnet_conditioning_scale_map:
+            controlnet_conditioning_scale_map = mask_image
+            if isinstance(controlnet_conditioning_scale, list):
+                controlnet_conditioning_scale = [scale * controlnet_conditioning_scale_map for scale in
+                                                 controlnet_conditioning_scale]
+            else:
+                controlnet_conditioning_scale = controlnet_conditioning_scale * controlnet_conditioning_scale_map
 
         # condition image(s)
         if isinstance(self.controlnet, ControlNetModel):

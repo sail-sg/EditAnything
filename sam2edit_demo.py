@@ -83,6 +83,8 @@ def create_demo_template(process, process_image_click=None, examples=None,
                     alpha_weight = gr.Slider(
                         label="Alpha weight", info="Alpha mixing with original image", minimum=0,
                         maximum=1, value=0.0, step=0.1)
+                    use_scale_map = gr.Checkbox(
+                        label='Use scale map', value=False)
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
             with gr.Column():
                 result_gallery_refine = gr.Gallery(
@@ -94,12 +96,12 @@ def create_demo_template(process, process_image_click=None, examples=None,
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
 
         ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution, alpha_weight]
+               detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution, alpha_weight, use_scale_map]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery_refine, result_gallery_init, result_gallery_ref, result_text])
 
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution, alpha_weight]
+                    detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution, alpha_weight, use_scale_map]
 
         run_button_click.click(fn=process,
                                inputs=ip_click,
