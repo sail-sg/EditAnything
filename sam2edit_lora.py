@@ -589,7 +589,12 @@ class EditAnythingLoraModel:
                     multi_condition_scale.append(1.0)
 
                 if use_scale_map:
-                    controlnet_conditioning_scale_map = 1.0 - prepare_mask_image(mask_image).float()
+                    scale_map_tmp = source_image["mask"]
+                    tmp = HWC3(scale_map_tmp.astype(np.uint8))
+                    scale_map_tmp = cv2.resize(
+                        tmp, (W, H), interpolation=cv2.INTER_LINEAR)
+                    scale_map_tmp = Image.fromarray(scale_map_tmp)
+                    controlnet_conditioning_scale_map = 1.0 - prepare_mask_image(scale_map_tmp).float()
                     print('scale map:', controlnet_conditioning_scale_map.size())
                 else:
                     controlnet_conditioning_scale_map = None

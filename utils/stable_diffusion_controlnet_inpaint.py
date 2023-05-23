@@ -1508,8 +1508,6 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
             latents,
         )
 
-        noise = latents
-
         if self.unet.config.in_channels != 4:
             mask_image_latents = self.prepare_mask_latents(
                 mask_image,
