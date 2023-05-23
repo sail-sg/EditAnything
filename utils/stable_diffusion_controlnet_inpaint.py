@@ -1549,6 +1549,9 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
             mask_image = torch.nn.functional.interpolate(mask_image, ((w // 8, h // 8)), mode='nearest')
             mask_image = mask_image.to(latents.device).type_as(latents)
             mask_image = 1 - mask_image
+            latents = mask_image * self.scheduler.add_noise(
+                init_masked_image_latents, torch.randn_like(init_masked_image_latents), timesteps[0]
+            ) + (1 - mask_image) * latents
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -1606,7 +1609,9 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
                         callback(i, t, latents)
 
                 if self.unet.config.in_channels == 4 and i < len(timesteps) - 1:
-                    init_latents_proper = self.scheduler.add_noise(init_masked_image_latents, noise, timesteps[i + 1])
+                    init_latents_proper = self.scheduler.add_noise(init_masked_image_latents,
+                                                                   torch.randn_like(init_masked_image_latents),
+                                                                   timesteps[i + 1])
                     if i < len(timesteps) * alignment_ratio:
                         # print(i, len(timesteps))
                         # masking for non-inpainting models
