@@ -24,7 +24,7 @@ from diffusers import ControlNetModel, UniPCMultistepScheduler
 
 from utils.stable_diffusion_controlnet import ControlNetModel2
 from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline, \
-    StableDiffusionControlNetInpaintMixingPipeline
+    StableDiffusionControlNetInpaintMixingPipeline, prepare_mask_image
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
@@ -587,6 +587,13 @@ class EditAnythingLoraModel:
                     multi_condition_image.append(
                         inpaint_image.type(torch.float16))
                     multi_condition_scale.append(1.0)
+
+                if use_scale_map:
+                    controlnet_conditioning_scale_map = prepare_mask_image(mask_image)
+                    print('scale map:', controlnet_conditioning_scale_map.size())
+                else:
+                    controlnet_conditioning_scale_map = None
+
                 x_samples = self.pipe(
                     image=img,
                     mask_image=mask_image,
@@ -600,7 +607,7 @@ class EditAnythingLoraModel:
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
                     alpha_weight=alpha_weight,
-                    controlnet_conditioning_scale_map=use_scale_map
+                    controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -629,7 +636,7 @@ class EditAnythingLoraModel:
                         alignment_ratio=refine_alignment_ratio,
                         guidance_scale=scale,
                         alpha_weight=alpha_weight,
-                        controlnet_conditioning_scale_map=use_scale_map
+                        controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
                     ).images
                     results_tile += x_samples_tile
 
@@ -638,4 +645,3 @@ class EditAnythingLoraModel:
     def download_image(url):
         response = requests.get(url)
         return Image.open(BytesIO(response.content)).convert("RGB")
-

@@ -1451,7 +1451,6 @@ class StableDiffusionControlNetInpaintMixingPipeline(StableDiffusionControlNetIn
         mask_image = prepare_mask_image(mask_image)
 
         if controlnet_conditioning_scale_map:
-            controlnet_conditioning_scale_map = mask_image
             if isinstance(controlnet_conditioning_scale, list):
                 controlnet_conditioning_scale = [scale * controlnet_conditioning_scale_map for scale in
                                                  controlnet_conditioning_scale]
