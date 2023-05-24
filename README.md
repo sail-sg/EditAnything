@@ -172,21 +172,6 @@ with unblurred images to solve this.
 python sam2semantic.py
 ```
 
-
-# Ongoing
-
-- [x] Conditional Generation trained with 85k samples in SAM dataset.
-
-- [ ] Training with more images from LAION and SAM.
-
-- [ ] Interactive control on different masks for image editing.
-
-- [ ] Using [Grounding DINO](https://github.com/IDEA-Research/Grounded-Segment-Anything) for category-related auto editing. 
-
-- [ ] ChatGPT guided image editing.
-
-
-
 # Setup
 
 **Create a environment**
