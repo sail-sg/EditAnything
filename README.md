@@ -10,9 +10,11 @@ Any forms of contribution and suggestion
 are very welcomed!
 
 # News🔥
+2023/05/24 - Support multiple high-quality character editing: clothes, haircut, colored contact lenses. [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+
 2023/05/22 - Support sketch to image by adjusting mask align strength in `sketch2image.py`!
 
-2023/05/13 - Support interactive segmentation with click operation!  [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+2023/05/13 - Support interactive segmentation with click operation!  
 
 2023/05/11 - Support tile model for detail refinement!
 
@@ -56,6 +58,17 @@ Highlight features:
 - BLIP2 text generation enables text guidance-free control.
 
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
+
+
+## Clothes editing!🔥
+<img width="1357" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/03452a0f-83ae-4257-995c-f3d8b71d4f1d">
+
+## Haircut editing!🔥
+<img width="1406" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/9091e3c9-c7e1-485d-bfe6-de5b21e83814">
+
+## Colored contact lenses!🔥
+<img width="1080" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/d9c8a136-e12c-4df4-aed0-a7c287e0ef3c">
+
 
 ## Draw your Sketch and Generate your Image!🔥
 prompt: "a paint of  a  tree in the ground with a river."
