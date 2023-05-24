@@ -69,6 +69,10 @@ Highlight features:
 ## Colored contact lenses!🔥
 <img width="1080" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/d9c8a136-e12c-4df4-aed0-a7c287e0ef3c">
 
+## Human replacement with tile refinement!🔥
+
+<img width="839" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/31883059-2bbc-442c-88aa-04d3a1da7abc">
+
 
 ## Draw your Sketch and Generate your Image!🔥
 prompt: "a paint of  a  tree in the ground with a river."
