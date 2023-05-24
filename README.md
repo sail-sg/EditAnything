@@ -6,11 +6,8 @@ This is an ongoing project aims to **Edit and Generate Anything** in an image,
 powered by [Segment Anything](https://github.com/facebookresearch/segment-anything), [ControlNet](https://github.com/lllyasviel/ControlNet),
 [BLIP2](https://github.com/salesforce/LAVIS/tree/main/projects/blip2), [Stable Diffusion](https://huggingface.co/spaces/stabilityai/stable-diffusion), etc.
 
-A project for fun. 
 Any forms of contribution and suggestion
 are very welcomed!
-
-
 
 # News🔥
 2023/05/22 - Support sketch to image by adjusting mask align strength in `sketch2image.py`!
@@ -23,6 +20,10 @@ are very welcomed!
 
 2023/05/04 - ControlNet-based inpainting model on any lora model is supported now. EditAnything can operate on any base/lord models without the requirements of inpainting model.
 
+<details>
+  <summary> More update logs. </summary>
+
+    
 2023/05/01 - Models V0.4 based on Stable Diffusion 1.5/2.1 are released. New models are trained with more data and iterations.[Model Zoo](https://github.com/sail-sg/EditAnything#model-zoo)
 
 2023/04/20 - We support the Customized editing with DreamBooth.
@@ -43,9 +44,9 @@ are very welcomed!
 
 2023/04/10 - We transfer the pretrained model into diffusers style, the pretrained model is auto loaded when using `sam2image_diffuser.py`. Now you can combine our pretrained model with different base models easily!
 
+</details>
+
 2023/04/09 - We released a pretrained model of StableDiffusion based ControlNet that generate images conditioned by SAM segmentation.
-
-
 
 # Features
 
@@ -63,6 +64,9 @@ prompt: "a paint of  a  tree in the ground with a river."
 <img width="250" alt="image" src="images/sk1_ex1.png">
 <img width="250" alt="image" src="images/sk1_ex2.png">
 </div>
+
+<details>
+  <summary> More demos. </summary>
 
 prompt: "a paint, river, mountain, sun, cloud, beautiful field."
 <div>
@@ -84,7 +88,7 @@ prompt: "a woman, long hair, detailed facial details, photorealistic, HD, beauti
 <img width="250" alt="image" src="images/sk3_ex1.png">
 <img width="250" alt="image" src="images/sk3_ex2.png">
 </div>
-
+</details>
 
 Also, you could use the generated image and sam model to refine your sketch definitely!
 
@@ -124,10 +128,15 @@ Text Grounding: "dog head"
 Human Prompt: "cute dog"
 ![p](images/sample_dog_head.jpg)
 
+<details>
+  <summary> More demos. </summary>
+    
 Text Grounding: "cat eye"
 
 Human Prompt: "A cute small humanoid cat"
 ![p](images/sample_cat_eye.jpg)
+    
+</details>
 
 ### Editing by Text-guided Object Mask
 Text Grounding: "bench"
@@ -140,9 +149,14 @@ Human Prompt: "bench"
 Human Prompt: "esplendent sunset sky, red brick wall"
 ![p](images/edit_sample2.jpg)
 
+
+<details>
+  <summary> More demos. </summary>
+    
 Human Prompt: "chairs by the lake, sunny day, spring"
 ![p](images/edit_sample1.jpg)
-An initial version of edit-anything. (We will add more controls on masks very soon.)
+    
+</details>
 
 
 ## Generate Anything by Segment-Anything
@@ -151,20 +165,20 @@ BLIP2 Prompt: "a large white and red ferry"
 ![p](images/sample1.jpg)
 (1:input image; 2: segmentation mask; 3-8: generated images.)
 
+<details>
+  <summary> More demos. </summary>
+
 BLIP2 Prompt: "a cloudy sky"
 ![p](images/sample2.jpg)
 
 BLIP2 Prompt: "a black drone flying in the blue sky"
 ![p](images/sample3.jpg)
 
+ </details>
 
 1) The human prompt and BLIP2 generated prompt build the text instruction.
 2) The SAM model segment the input image to generate segmentation mask without category.
 3) The segmentation mask and text instruction guide the image generation.
-
-Note: Due to the privacy protection in the SAM dataset,
-faces in generated images are also blurred. We are training new models
-with unblurred images to solve this.
 
 ## Generate semantic labels for each SAM mask.
 ![p](images/sample_semantic.jpg)
