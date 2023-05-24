@@ -52,11 +52,6 @@ are very welcomed!
 
 # Features
 
-Highlight features:
-- Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
-- category-unrelated SAM mask enables more forms of editing and generation.
-- BLIP2 text generation enables text guidance-free control.
-
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
 
 
@@ -201,7 +196,13 @@ BLIP2 Prompt: "a black drone flying in the blue sky"
 ![p](images/sample_semantic.jpg)
 ```
 python sam2semantic.py
+
 ```
+
+Highlight features:
+- Pretrained ControlNet with SAM mask as condition enables the image generation with fine-grained control.
+- category-unrelated SAM mask enables more forms of editing and generation.
+- BLIP2 text generation enables text guidance-free control.
 
 # Setup
 
