@@ -599,21 +599,36 @@ class EditAnythingLoraModel:
                 else:
                     controlnet_conditioning_scale_map = None
 
-                x_samples = self.pipe(
-                    image=img,
-                    mask_image=mask_image,
-                    prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps,
-                    generator=generator,
-                    controlnet_conditioning_image=multi_condition_image,
-                    height=H,
-                    width=W,
-                    controlnet_conditioning_scale=multi_condition_scale,
-                    guidance_scale=scale,
-                    alpha_weight=alpha_weight,
-                    controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
-                ).images
+                if isinstance(self.pipe, StableDiffusionControlNetInpaintMixingPipeline):
+                    x_samples = self.pipe(
+                        image=img,
+                        mask_image=mask_image,
+                        prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                        num_images_per_prompt=num_samples,
+                        num_inference_steps=ddim_steps,
+                        generator=generator,
+                        controlnet_conditioning_image=multi_condition_image,
+                        height=H,
+                        width=W,
+                        controlnet_conditioning_scale=multi_condition_scale,
+                        guidance_scale=scale,
+                        alpha_weight=alpha_weight,
+                        controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
+                    ).images
+                else:
+                    x_samples = self.pipe(
+                        image=img,
+                        mask_image=mask_image,
+                        prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                        num_images_per_prompt=num_samples,
+                        num_inference_steps=ddim_steps,
+                        generator=generator,
+                        controlnet_conditioning_image=multi_condition_image,
+                        height=H,
+                        width=W,
+                        controlnet_conditioning_scale=multi_condition_scale,
+                        guidance_scale=scale,
+                    ).images
             results = [x_samples[i] for i in range(num_samples)]
 
             results_tile = []
@@ -627,22 +642,38 @@ class EditAnythingLoraModel:
                         mask_image_tile = cv2.resize(
                             mask_imag_ori, (img_tile.size[0], img_tile.size[1]), interpolation=cv2.INTER_LINEAR)
                         mask_image_tile = Image.fromarray(mask_image_tile)
-                    x_samples_tile = self.tile_pipe(
-                        image=img_tile,
-                        mask_image=mask_image_tile,
-                        prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
-                        num_images_per_prompt=1,
-                        num_inference_steps=ddim_steps,
-                        generator=generator,
-                        controlnet_conditioning_image=img_tile,
-                        height=img_tile.size[1],
-                        width=img_tile.size[0],
-                        controlnet_conditioning_scale=1.0,
-                        alignment_ratio=refine_alignment_ratio,
-                        guidance_scale=scale,
-                        alpha_weight=alpha_weight,
-                        controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
-                    ).images
+                    if isinstance(self.pipe, StableDiffusionControlNetInpaintMixingPipeline):
+                        x_samples_tile = self.tile_pipe(
+                            image=img_tile,
+                            mask_image=mask_image_tile,
+                            prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                            num_images_per_prompt=1,
+                            num_inference_steps=ddim_steps,
+                            generator=generator,
+                            controlnet_conditioning_image=img_tile,
+                            height=img_tile.size[1],
+                            width=img_tile.size[0],
+                            controlnet_conditioning_scale=1.0,
+                            alignment_ratio=refine_alignment_ratio,
+                            guidance_scale=scale,
+                            alpha_weight=alpha_weight,
+                            controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
+                        ).images
+                    else:
+                        x_samples_tile = self.tile_pipe(
+                            image=img_tile,
+                            mask_image=mask_image_tile,
+                            prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                            num_images_per_prompt=1,
+                            num_inference_steps=ddim_steps,
+                            generator=generator,
+                            controlnet_conditioning_image=img_tile,
+                            height=img_tile.size[1],
+                            width=img_tile.size[0],
+                            controlnet_conditioning_scale=1.0,
+                            alignment_ratio=refine_alignment_ratio,
+                            guidance_scale=scale,
+                        ).images
                     results_tile += x_samples_tile
 
         return results_tile, results, [full_segmask, mask_image], postive_prompt
