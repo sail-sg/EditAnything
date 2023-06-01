@@ -22,9 +22,17 @@ with gr.Blocks() as demo:
     gr.Markdown(DESCRIPTION)
     with gr.Tabs():
         with gr.TabItem('🖌Edit Anything'):
-            model = EditAnythingLoraModel(base_model_path="stabilityai/stable-diffusion-2-inpainting",
-                                          controlmodel_name='LAION Pretrained(v0-4)-SD21',
-                                          lora_model_path=None, use_blip=True, extra_inpaint=False,
+            # model = EditAnythingLoraModel(base_model_path="stabilityai/stable-diffusion-2-inpainting",
+            #                               controlmodel_name='LAION Pretrained(v0-4)-SD21',
+            #                               lora_model_path=None, use_blip=True, extra_inpaint=False,
+            #                               sam_generator=sam_generator,
+            #                               mask_predictor=mask_predictor,
+            #                               blip_processor=blip_processor,
+            #                               blip_model=blip_model)
+            # create_demo_edit_anything(model.process, model.process_image_click)
+            model = EditAnythingLoraModel(base_model_path="runwayml/stable-diffusion-v1-5",
+                                          controlmodel_name='LAION Pretrained(v0-4)-SD15',
+                                          lora_model_path=None, use_blip=True, extra_inpaint=True,
                                           sam_generator=sam_generator,
                                           mask_predictor=mask_predictor,
                                           blip_processor=blip_processor,
@@ -42,14 +50,24 @@ with gr.Blocks() as demo:
                                           lora_weight=0.5,
                                           )
             create_demo_beauty(model.process, model.process_image_click)
-        with gr.TabItem(' 👨‍🌾Handsome Edit/Generation'):
-            model = EditAnythingLoraModel(base_model_path=os.path.join(sd_models_path, "Realistic_Vision_V2.0"),
+        # with gr.TabItem(' 👨‍🌾Handsome Edit/Generation'):
+        #     model = EditAnythingLoraModel(base_model_path=os.path.join(sd_models_path, "Realistic_Vision_V2.0"),
+        #                                   lora_model_path=None, use_blip=True, extra_inpaint=True,
+        #                                   sam_generator=sam_generator,
+        #                                   mask_predictor=mask_predictor,
+        #                                   blip_processor=blip_processor,
+        #                                   blip_model=blip_model)
+        #     create_demo_handsome(model.process, model.process_image_click)
+        with gr.TabItem('Edit More'):
+            model = EditAnythingLoraModel(base_model_path="andite/anything-v4.0",
                                           lora_model_path=None, use_blip=True, extra_inpaint=True,
                                           sam_generator=sam_generator,
                                           mask_predictor=mask_predictor,
                                           blip_processor=blip_processor,
-                                          blip_model=blip_model)
-            create_demo_handsome(model.process, model.process_image_click)
+                                          blip_model=blip_model,
+                                          lora_weight=0.5,
+                                          )
+            create_demo_beauty(model.process, model.process_image_click)
         # with gr.TabItem('Generate Anything'):
         #     create_demo_generate_anything()
     # with gr.Tabs():

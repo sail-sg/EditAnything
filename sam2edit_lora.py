@@ -21,7 +21,7 @@ from safetensors.torch import load_file
 from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
-from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline
+from utils.stable_diffusion_controlnet_inpaint_ref import StableDiffusionControlNetInpaintPipeline
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
@@ -467,12 +467,18 @@ class EditAnythingLoraModel:
                 enable_auto_prompt, a_prompt, n_prompt,
                 num_samples, image_resolution, detect_resolution,
                 ddim_steps, guess_mode, scale, seed, eta,
-                enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, condition_model=None):
+                enable_tile=True, refine_alignment_ratio=None, refine_image_resolution=None, condition_model=None,
+                ref_image=None,
+                attention_auto_machine_weight=1.0,
+                gn_auto_machine_weight=1.0,
+                style_fidelity=0.5,
+                reference_attn=True,
+                reference_adain=True):
 
-        if condition_model is None:
+        if condition_model is None or condition_model=="EditAnything":
             this_controlnet_path = self.default_controlnet_path
         else:
-            this_controlnet_path = config_dict[condition_model]
+            this_controlnet_path = condition_model
         input_image = source_image["image"] if isinstance(
             source_image, dict) else np.array(source_image, dtype=np.uint8)
         if mask_image is None:
@@ -547,6 +553,9 @@ class EditAnythingLoraModel:
             if enable_all_generate and self.extra_inpaint:
                 self.pipe.safety_checker = lambda images, clip_input: (
                     images, False)
+                if ref_image is not None:
+                    print("Not support yet.")
+                    exit()
                 x_samples = self.pipe(
                     prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
                     num_images_per_prompt=num_samples,
@@ -557,6 +566,7 @@ class EditAnythingLoraModel:
                     image=[control.type(torch.float16)],
                     controlnet_conditioning_scale=[float(control_scale)],
                     guidance_scale=scale,
+                    guess_mode=guess_mode,
                 ).images
             else:
                 multi_condition_image = []
@@ -581,6 +591,13 @@ class EditAnythingLoraModel:
                     width=W,
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
+                    ref_image=ref_image,
+                    attention_auto_machine_weight=attention_auto_machine_weight,
+                    gn_auto_machine_weight=gn_auto_machine_weight,
+                    style_fidelity=style_fidelity,
+                    reference_attn=reference_attn,
+                    reference_adain=reference_adain,
+                    guess_mode=guess_mode,
                 ).images
             results = [x_samples[i] for i in range(num_samples)]
 
@@ -608,6 +625,7 @@ class EditAnythingLoraModel:
                         controlnet_conditioning_scale=1.0,
                         alignment_ratio=refine_alignment_ratio,
                         guidance_scale=scale,
+                        guess_mode=guess_mode,
                     ).images
                     results_tile += x_samples_tile
 

@@ -12,6 +12,9 @@ def create_demo_template(process, process_image_click=None, examples=None,
         clicked_points = gr.State([])
         origin_image = gr.State(None)
         click_mask = gr.State(None)
+        ref_clicked_points = gr.State([])
+        ref_origin_image = gr.State(None)
+        ref_click_mask = gr.State(None)
         with gr.Row():
             gr.Markdown(INFO)
         with gr.Row().style(equal_height=False):
@@ -64,10 +67,39 @@ def create_demo_template(process, process_image_click=None, examples=None,
                         label='Tile refinement for high resolution generation', info='Slow inference', value=True)
                     refine_alignment_ratio = gr.Slider(
                         label="Alignment Strength", info='Large value -> strict alignment with input image. Small value -> strong global consistency', minimum=0.0, maximum=1.0, value=0.95, step=0.05)
-                    
+
+                with gr.Accordion("Reference options", open=False):
+                    ref_image = gr.Image(
+                        source='upload', label="Upload a reference image", type="pil", value=None)
+                    # ref_image = gr.Image(
+                    #     type="pil", interactive=True,
+                    #     label="Image: Upload an image and click the region you want to use as reference.",
+                    # )
+                    # with gr.Column():
+                    #     with gr.Row():
+                    #         ref_point_prompt = gr.Radio(
+                    #             choices=["Foreground Point", "Background Point"],
+                    #             value="Foreground Point",
+                    #             label="Point Label",
+                    #             interactive=True, show_label=False)
+                    #         ref_clear_button_click = gr.Button(
+                    #             value="Clear Click Points", interactive=True)
+                    #         ref_clear_button_image = gr.Button(
+                    #             value="Clear Image", interactive=True)
+                    attention_auto_machine_weight = gr.Slider(
+                        label="attention_auto_machine_weight", minimum=0, maximum=0.9, value=0.5, step=0.01)
+                    gn_auto_machine_weight = gr.Slider(
+                        label="gn_auto_machine_weight", minimum=0, maximum=1.0, value=0.25, step=0.01)
+                    style_fidelity = gr.Slider(
+                        label="Style fidelity", minimum=0, maximum=1.0, value=0.5, step=0.01)
+                    reference_attn = gr.Checkbox(
+                        label='reference_attn', value=True)
+                    reference_adain = gr.Checkbox(
+                        label='reference_adain', value=True)
+
                 with gr.Accordion("Advanced options", open=False):
                     mask_image = gr.Image(
-                        source='upload', label="Upload a predefined mask of edit region if you do not want to write your prompt.", info="(Optional:Switch to Brush mode when using this!) ", type="numpy", value=None)
+                        source='upload', label="Upload a predefined mask of edit region: Switch to Brush mode when using this!", type="numpy", value=None)
                     image_resolution = gr.Slider(
                         label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
                     refine_image_resolution = gr.Slider(
@@ -81,6 +113,8 @@ def create_demo_template(process, process_image_click=None, examples=None,
                     scale = gr.Slider(
                         label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
+                    condition_model = gr.Textbox(
+                        label="Condition model path", info='Text in the Controlnet model path in hugglingface', value='EditAnything')
             with gr.Column():
                 result_gallery_refine = gr.Gallery(
                     label='Output High quality', show_label=True, elem_id="gallery").style(grid=2, preview=False)
@@ -91,12 +125,14 @@ def create_demo_template(process, process_image_click=None, examples=None,
                 result_text = gr.Text(label='BLIP2+Human Prompt Text')
 
         ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-               detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
+               detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution,
+               condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery_refine, result_gallery_init, result_gallery_ref, result_text])
 
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
-                    detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution]
+                    detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution,
+                    condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain]
 
         run_button_click.click(fn=process,
                                inputs=ip_click,
@@ -126,6 +162,32 @@ def create_demo_template(process, process_image_click=None, examples=None,
             outputs=[source_image_click, clicked_points,
                      click_mask, result_gallery_init, result_text]
         )
+
+        # ref_image.upload(
+        #     lambda image: image.copy() if image is not None else None,
+        #     inputs=[ref_image],
+        #     outputs=[ref_origin_image]
+        # )
+        # ref_image.select(
+        #     process_image_click,
+        #     inputs=[ref_origin_image, ref_point_prompt,
+        #             ref_clicked_points, image_resolution],
+        #     outputs=[ref_image, ref_clicked_points, ref_click_mask],
+        #     show_progress=True, queue=True
+        # )
+        # ref_clear_button_click.click(
+        #     fn=lambda ref_original_image: (ref_original_image.copy(), [], None)
+        #     if ref_original_image is not None else (None, [], None),
+        #     inputs=[ref_origin_image],
+        #     outputs=[ref_image, ref_clicked_points, ref_click_mask]
+        # )
+        # ref_clear_button_image.click(
+        #     fn=lambda: (None, [], None, None, None),
+        #     inputs=[],
+        #     outputs=[ref_image, ref_clicked_points,
+        #              ref_click_mask, result_gallery_init, result_text]
+        # )
+
         if examples is not None:
             with gr.Row():
                 ex = gr.Examples(examples=examples, fn=process,
