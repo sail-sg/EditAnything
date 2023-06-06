@@ -69,8 +69,13 @@ def create_demo_template(process, process_image_click=None, examples=None,
                         label="Alignment Strength", info='Large value -> strict alignment with input image. Small value -> strong global consistency', minimum=0.0, maximum=1.0, value=0.95, step=0.05)
 
                 with gr.Accordion("Reference options", open=False):
+                    # ref_image = gr.Image(
+                    #     source='upload', label="Upload a reference image", type="pil", value=None)
                     ref_image = gr.Image(
-                        source='upload', label="Upload a reference image", type="pil", value=None)
+                        source='upload',
+                        label="Upload a reference image and cover the region you want to use with sketch",
+                        type="pil", tool="sketch"
+                    )
                     # ref_image = gr.Image(
                     #     type="pil", interactive=True,
                     #     label="Image: Upload an image and click the region you want to use as reference.",
@@ -87,9 +92,9 @@ def create_demo_template(process, process_image_click=None, examples=None,
                     #         ref_clear_button_image = gr.Button(
                     #             value="Clear Image", interactive=True)
                     attention_auto_machine_weight = gr.Slider(
-                        label="attention_auto_machine_weight", minimum=0, maximum=0.9, value=0.5, step=0.01)
+                        label="attention_auto_machine_weight", minimum=0, maximum=1.0, value=0.5, step=0.01)
                     gn_auto_machine_weight = gr.Slider(
-                        label="gn_auto_machine_weight", minimum=0, maximum=1.0, value=0.25, step=0.01)
+                        label="gn_auto_machine_weight", minimum=0, maximum=1.0, value=0.5, step=0.01)
                     style_fidelity = gr.Slider(
                         label="Style fidelity", minimum=0, maximum=1.0, value=0.5, step=0.01)
                     reference_attn = gr.Checkbox(

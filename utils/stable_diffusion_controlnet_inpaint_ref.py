@@ -839,6 +839,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
         alignment_ratio = None,
         guess_mode: bool = False,
         ref_image: Union[torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]] = None,
+        ref_mask: Union[torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]] = None,
         attention_auto_machine_weight: float = 1.0,
         gn_auto_machine_weight: float = 1.0,
         style_fidelity: float = 0.5,
@@ -966,6 +967,9 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
         )
         if ref_image is not None: # for ref_only mode
             self.check_ref_input(reference_attn, reference_adain)
+        if ref_mask is not None:
+            ref_mask = prepare_mask_image(ref_mask)
+            ref_mask = F.interpolate(ref_mask, size=(height // self.vae_scale_factor, width // self.vae_scale_factor))
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):
@@ -994,6 +998,15 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
         )
+        if ref_image is not None:
+            ref_prompt_embeds = self._encode_prompt(
+                'a woman in a tan suit and white shirt,best quality,extremely detailed',
+                device,
+                num_images_per_prompt*2,
+                do_classifier_free_guidance,
+                negative_prompt=None,
+                prompt_embeds=None,
+            )
 
         # 4. Prepare mask, image, and controlnet_conditioning_image + ref_img
         image = prepare_image(image)
@@ -1129,6 +1142,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
             self.gn_auto_machine_weight = gn_auto_machine_weight
             self.do_classifier_free_guidance = do_classifier_free_guidance
             self.style_fidelity = style_fidelity
+            self.ref_mask = ref_mask
             attn_modules, gn_modules = self.redefine_ref_model(reference_attn, reference_adain)
 
 
@@ -1178,7 +1192,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
                     self.unet(
                         ref_xt,
                         t,
-                        encoder_hidden_states=prompt_embeds,
+                        encoder_hidden_states=ref_prompt_embeds,
                         cross_attention_kwargs=cross_attention_kwargs,
                         # down_block_additional_residuals=down_block_res_samples,
                         # mid_block_additional_residual=mid_block_res_sample,

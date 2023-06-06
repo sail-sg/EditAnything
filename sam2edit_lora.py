@@ -86,6 +86,7 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     :return:
     """
     max_length = pipeline.tokenizer.model_max_length
+    print("max_length", max_length)
 
     # simple way to determine length of tokens
     count_prompt = len(re.split(r', ', prompt))
@@ -96,12 +97,14 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
         input_ids = pipeline.tokenizer(
             prompt, return_tensors="pt", truncation=False).input_ids.to(device)
         shape_max_length = input_ids.shape[-1]
+        print("shape_max_length", shape_max_length)
         negative_ids = pipeline.tokenizer(negative_prompt, truncation=False, padding="max_length",
                                           max_length=shape_max_length, return_tensors="pt").input_ids.to(device)
     else:
         negative_ids = pipeline.tokenizer(
             negative_prompt, return_tensors="pt", truncation=False).input_ids.to(device)
         shape_max_length = negative_ids.shape[-1]
+        print("shape_max_length", shape_max_length)
         input_ids = pipeline.tokenizer(prompt, return_tensors="pt", truncation=False, padding="max_length",
                                        max_length=shape_max_length).input_ids.to(device)
 
@@ -505,6 +508,12 @@ class EditAnythingLoraModel:
             self.default_controlnet_path = this_controlnet_path
             torch.cuda.empty_cache()
 
+        if ref_image is not None:
+            ref_mask = ref_image["mask"]
+            ref_image = ref_image["image"]
+        else:
+            ref_mask = None
+
         with torch.no_grad():
             if self.use_blip and enable_auto_prompt:
                 print("Generating text:")
@@ -550,6 +559,7 @@ class EditAnythingLoraModel:
             prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
             negative_prompt_embeds = torch.cat(
                 [negative_prompt_embeds] * num_samples, dim=0)
+
             if enable_all_generate and self.extra_inpaint:
                 self.pipe.safety_checker = lambda images, clip_input: (
                     images, False)
@@ -592,6 +602,7 @@ class EditAnythingLoraModel:
                     controlnet_conditioning_scale=multi_condition_scale,
                     guidance_scale=scale,
                     ref_image=ref_image,
+                    ref_mask=ref_mask,
                     attention_auto_machine_weight=attention_auto_machine_weight,
                     gn_auto_machine_weight=gn_auto_machine_weight,
                     style_fidelity=style_fidelity,
