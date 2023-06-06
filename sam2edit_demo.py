@@ -76,6 +76,8 @@ def create_demo_template(process, process_image_click=None, examples=None,
                         label="Upload a reference image and cover the region you want to use with sketch",
                         type="pil", tool="sketch"
                     )
+                    ref_prompt = gr.Textbox(
+                        label="Prompt", info='Text in the prompt of edited region', value='best quality, extremely detailed')
                     # ref_image = gr.Image(
                     #     type="pil", interactive=True,
                     #     label="Image: Upload an image and click the region you want to use as reference.",
@@ -131,13 +133,13 @@ def create_demo_template(process, process_image_click=None, examples=None,
 
         ips = [source_image_brush, enable_all_generate, mask_image, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
                detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution,
-               condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain]
+               condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain, ref_prompt]
         run_button.click(fn=process, inputs=ips, outputs=[
             result_gallery_refine, result_gallery_init, result_gallery_ref, result_text])
 
         ip_click = [origin_image, enable_all_generate, click_mask, control_scale, enable_auto_prompt, a_prompt, n_prompt, num_samples, image_resolution,
                     detect_resolution, ddim_steps, guess_mode, scale, seed, eta, enable_tile, refine_alignment_ratio, refine_image_resolution,
-                    condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain]
+                    condition_model, ref_image, attention_auto_machine_weight, gn_auto_machine_weight, style_fidelity, reference_attn, reference_adain, ref_prompt]
 
         run_button_click.click(fn=process,
                                inputs=ip_click,

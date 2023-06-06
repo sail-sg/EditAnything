@@ -840,6 +840,7 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
         guess_mode: bool = False,
         ref_image: Union[torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]] = None,
         ref_mask: Union[torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]] = None,
+        ref_prompt: Union[str, List[str]] = None,
         attention_auto_machine_weight: float = 1.0,
         gn_auto_machine_weight: float = 1.0,
         style_fidelity: float = 0.5,
@@ -1000,11 +1001,11 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline, LoraLoaderMixi
         )
         if ref_image is not None:
             ref_prompt_embeds = self._encode_prompt(
-                'a woman in a tan suit and white shirt,best quality,extremely detailed',
+                'best quality',#ref_prompt,
                 device,
                 num_images_per_prompt*2,
                 do_classifier_free_guidance,
-                negative_prompt=None,
+                negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
                 prompt_embeds=None,
             )
 

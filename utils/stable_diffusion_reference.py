@@ -202,8 +202,9 @@ class StableDiffusionReferencePipeline():
                         this_ref_mask = F.interpolate(self.ref_mask.to(norm_hidden_states.device), scale_factor=1/scale_ratio)
                         resize_norm_hidden_states = norm_hidden_states.view(norm_hidden_states.shape[0], this_ref_mask.shape[2], this_ref_mask.shape[3], -1).permute(0,3,1,2)
 
-                        resize_norm_hidden_states = F.interpolate(resize_norm_hidden_states, scale_factor=1.0, mode='bilinear')
-                        this_ref_mask = F.interpolate(this_ref_mask, scale_factor=1.0)
+                        ref_scale = 1.5
+                        resize_norm_hidden_states = F.interpolate(resize_norm_hidden_states, scale_factor=ref_scale, mode='bilinear')
+                        this_ref_mask = F.interpolate(this_ref_mask, scale_factor=ref_scale)
                         # print("this_ref_mask",this_ref_mask.shape)
                         
                         # this_ref_mask = this_ref_mask.view(1,-1,1)

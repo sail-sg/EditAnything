@@ -476,7 +476,8 @@ class EditAnythingLoraModel:
                 gn_auto_machine_weight=1.0,
                 style_fidelity=0.5,
                 reference_attn=True,
-                reference_adain=True):
+                reference_adain=True,
+                ref_prompt=None):
 
         if condition_model is None or condition_model=="EditAnything":
             this_controlnet_path = self.default_controlnet_path
@@ -511,6 +512,10 @@ class EditAnythingLoraModel:
         if ref_image is not None:
             ref_mask = ref_image["mask"]
             ref_image = ref_image["image"]
+            if self.use_blip:
+                print("Generating ref text:")
+                ref_prompt += self.get_blip2_text(ref_image)
+                print("Generated ref text:", ref_prompt)
         else:
             ref_mask = None
 
@@ -565,7 +570,7 @@ class EditAnythingLoraModel:
                     images, False)
                 if ref_image is not None:
                     print("Not support yet.")
-                    exit()
+                    return
                 x_samples = self.pipe(
                     prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
                     num_images_per_prompt=num_samples,
@@ -603,6 +608,7 @@ class EditAnythingLoraModel:
                     guidance_scale=scale,
                     ref_image=ref_image,
                     ref_mask=ref_mask,
+                    ref_prompt=ref_prompt,
                     attention_auto_machine_weight=attention_auto_machine_weight,
                     gn_auto_machine_weight=gn_auto_machine_weight,
                     style_fidelity=style_fidelity,
