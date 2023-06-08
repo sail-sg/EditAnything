@@ -154,7 +154,7 @@ def create_demo_template(
                         )
                     with gr.Row():
                         reference_adain = gr.Checkbox(
-                            label="reference_adain", value=True
+                            label="reference_adain", value=False
                         )
                         gn_auto_machine_weight = gr.Slider(
                             label="gn_weight",
@@ -244,7 +244,6 @@ def create_demo_template(
 
         ips = [
             source_image_brush,
-            ref_auto_prompt,
             enable_all_generate,
             mask_image,
             control_scale,
