@@ -53,3 +53,21 @@ def resize_points(clicked_points, original_shape, resolution):
         resized_points.append(resized_point)
     
     return resized_points
+
+def get_bounding_box(mask):
+    # Convert PIL Image to numpy array
+    mask = np.array(mask).astype(np.uint8)
+
+    # Take the first channel (R) of the mask
+    mask = mask[:,:,0]
+
+    # Get the indices of elements that are not zero
+    rows = np.any(mask, axis=0)
+    cols = np.any(mask, axis=1)
+    
+    # Get the minimum and maximum indices where the elements are not zero
+    rmin, rmax = np.where(rows)[0][[0, -1]]
+    cmin, cmax = np.where(cols)[0][[0, -1]]
+    
+    # Return as [xmin, ymin, xmax, ymax]
+    return [rmin, cmin, rmax, cmax]

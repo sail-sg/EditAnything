@@ -164,7 +164,7 @@ class StableDiffusionReferencePipeline():
         assert reference_attn or reference_adain, "`reference_attn` or `reference_adain` must be True."
 
 
-    def redefine_ref_model(self, reference_attn, reference_adain):
+    def redefine_ref_model(self, model, reference_attn, reference_adain, model_type='unet'):
 
         def hacked_basic_transformer_inner_forward(
             self,
@@ -202,7 +202,7 @@ class StableDiffusionReferencePipeline():
                         this_ref_mask = F.interpolate(self.ref_mask.to(norm_hidden_states.device), scale_factor=1/scale_ratio)
                         resize_norm_hidden_states = norm_hidden_states.view(norm_hidden_states.shape[0], this_ref_mask.shape[2], this_ref_mask.shape[3], -1).permute(0,3,1,2)
 
-                        ref_scale = 1.5
+                        ref_scale = 1.0
                         resize_norm_hidden_states = F.interpolate(resize_norm_hidden_states, scale_factor=ref_scale, mode='bilinear')
                         this_ref_mask = F.interpolate(this_ref_mask, scale_factor=ref_scale)
                         # print("this_ref_mask",this_ref_mask.shape)
@@ -595,78 +595,101 @@ class StableDiffusionReferencePipeline():
 
             return hidden_states
 
+        if model_type == 'unet':
 
-        if reference_attn:
-            attn_modules = [module for module in torch_dfs(self.unet) if isinstance(module, BasicTransformerBlock)]
-            attn_modules = sorted(attn_modules, key=lambda x: -x.norm1.normalized_shape[0])
+            if reference_attn:
+                attn_modules = [module for module in torch_dfs(model) if isinstance(module, BasicTransformerBlock)]
+                attn_modules = sorted(attn_modules, key=lambda x: -x.norm1.normalized_shape[0])
 
-            for i, module in enumerate(attn_modules):
-                module._original_inner_forward = module.forward
-                module.forward = hacked_basic_transformer_inner_forward.__get__(module, BasicTransformerBlock)
-                module.bank = []
-                module.attn_weight = float(i) / float(len(attn_modules))
-                module.attention_auto_machine_weight = self.attention_auto_machine_weight
-                module.gn_auto_machine_weight = self.gn_auto_machine_weight
-                module.do_classifier_free_guidance = self.do_classifier_free_guidance
-                module.do_classifier_free_guidance = self.do_classifier_free_guidance
-                module.uc_mask = self.uc_mask
-                module.style_fidelity = self.style_fidelity
-                module.ref_mask = self.ref_mask
-        else:
-            attn_modules = None
-        if reference_adain:
-            gn_modules = [self.unet.mid_block]
-            self.unet.mid_block.gn_weight = 0
+                for i, module in enumerate(attn_modules):
+                    module._original_inner_forward = module.forward
+                    module.forward = hacked_basic_transformer_inner_forward.__get__(module, BasicTransformerBlock)
+                    module.bank = []
+                    module.attn_weight = float(i) / float(len(attn_modules))
+                    module.attention_auto_machine_weight = self.attention_auto_machine_weight
+                    module.gn_auto_machine_weight = self.gn_auto_machine_weight
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.uc_mask = self.uc_mask
+                    module.style_fidelity = self.style_fidelity
+                    module.ref_mask = self.ref_mask
+            else:
+                attn_modules = None
+            if reference_adain:
+                gn_modules = [model.mid_block]
+                model.mid_block.gn_weight = 0
 
-            down_blocks = self.unet.down_blocks
-            for w, module in enumerate(down_blocks):
-                module.gn_weight = 1.0 - float(w) / float(len(down_blocks))
-                gn_modules.append(module)
-                # print(module.__class__.__name__,module.gn_weight)
+                down_blocks = model.down_blocks
+                for w, module in enumerate(down_blocks):
+                    module.gn_weight = 1.0 - float(w) / float(len(down_blocks))
+                    gn_modules.append(module)
+                    # print(module.__class__.__name__,module.gn_weight)
 
-            up_blocks = self.unet.up_blocks
-            for w, module in enumerate(up_blocks):
-                module.gn_weight = float(w) / float(len(up_blocks))
-                gn_modules.append(module)
-                # print(module.__class__.__name__,module.gn_weight)
+                up_blocks = model.up_blocks
+                for w, module in enumerate(up_blocks):
+                    module.gn_weight = float(w) / float(len(up_blocks))
+                    gn_modules.append(module)
+                    # print(module.__class__.__name__,module.gn_weight)
 
 
-            for i, module in enumerate(gn_modules):
-                if getattr(module, "original_forward", None) is None:
-                    module.original_forward = module.forward
-                if i == 0:
-                    # mid_block
-                    module.forward = hacked_mid_forward.__get__(module, torch.nn.Module)
-                elif isinstance(module, CrossAttnDownBlock2D):
-                    module.forward = hack_CrossAttnDownBlock2D_forward.__get__(module, CrossAttnDownBlock2D)
-                    module.mean_bank0 = []
-                    module.var_bank0 = []
-                elif isinstance(module, DownBlock2D):
-                    module.forward = hacked_DownBlock2D_forward.__get__(module, DownBlock2D)
-                # elif isinstance(module, CrossAttnUpBlock2D):
-                #     module.forward = hacked_CrossAttnUpBlock2D_forward.__get__(module, CrossAttnUpBlock2D)
-                #     module.mean_bank0 = []
-                #     module.var_bank0 = []
-                elif isinstance(module, UpBlock2D):
-                    module.forward = hacked_UpBlock2D_forward.__get__(module, UpBlock2D)
-                    module.mean_bank0 = []
-                    module.var_bank0 = []
-                module.mean_bank = []
-                module.var_bank = []
-                # print(i)
-                # print("before", module.gn_weight)
-                # module.gn_weight *= 2
-                # print("after", module.gn_weight)
-                module.attention_auto_machine_weight = self.attention_auto_machine_weight
-                module.gn_auto_machine_weight = self.gn_auto_machine_weight
-                # print(module.gn_auto_machine_weight)
-                module.do_classifier_free_guidance = self.do_classifier_free_guidance
-                module.do_classifier_free_guidance = self.do_classifier_free_guidance
-                module.uc_mask = self.uc_mask
-                module.style_fidelity = self.style_fidelity
-                module.ref_mask = self.ref_mask
-        else:
+                for i, module in enumerate(gn_modules):
+                    if getattr(module, "original_forward", None) is None:
+                        module.original_forward = module.forward
+                    if i == 0:
+                        # mid_block
+                        module.forward = hacked_mid_forward.__get__(module, torch.nn.Module)
+                    elif isinstance(module, CrossAttnDownBlock2D):
+                        module.forward = hack_CrossAttnDownBlock2D_forward.__get__(module, CrossAttnDownBlock2D)
+                        module.mean_bank0 = []
+                        module.var_bank0 = []
+                    elif isinstance(module, DownBlock2D):
+                        module.forward = hacked_DownBlock2D_forward.__get__(module, DownBlock2D)
+                    # elif isinstance(module, CrossAttnUpBlock2D):
+                    #     module.forward = hacked_CrossAttnUpBlock2D_forward.__get__(module, CrossAttnUpBlock2D)
+                    #     module.mean_bank0 = []
+                    #     module.var_bank0 = []
+                    elif isinstance(module, UpBlock2D):
+                        module.forward = hacked_UpBlock2D_forward.__get__(module, UpBlock2D)
+                        module.mean_bank0 = []
+                        module.var_bank0 = []
+                    module.mean_bank = []
+                    module.var_bank = []
+                    # print(i)
+                    # print("before", module.gn_weight)
+                    # module.gn_weight *= 2
+                    # print("after", module.gn_weight)
+                    module.attention_auto_machine_weight = self.attention_auto_machine_weight
+                    module.gn_auto_machine_weight = self.gn_auto_machine_weight
+                    # print(module.gn_auto_machine_weight)
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.uc_mask = self.uc_mask
+                    module.style_fidelity = self.style_fidelity
+                    module.ref_mask = self.ref_mask
+            else:
+                gn_modules = None
+        elif model_type=='controlnet':
+            model = model.nets[-1] # only hack the inpainting controlnet
+            if reference_attn:
+                attn_modules = [module for module in torch_dfs(model) if isinstance(module, BasicTransformerBlock)]
+                attn_modules = sorted(attn_modules, key=lambda x: -x.norm1.normalized_shape[0])
+                for i, module in enumerate(attn_modules):
+                    print(i)
+                    module._original_inner_forward = module.forward
+                    module.forward = hacked_basic_transformer_inner_forward.__get__(module, BasicTransformerBlock)
+                    module.bank = []
+                    module.attn_weight = 0.0#float(i) / float(len(attn_modules))
+                    module.attention_auto_machine_weight = self.attention_auto_machine_weight
+                    module.gn_auto_machine_weight = self.gn_auto_machine_weight
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.do_classifier_free_guidance = self.do_classifier_free_guidance
+                    module.uc_mask = self.uc_mask
+                    module.style_fidelity = self.style_fidelity
+                    module.ref_mask = self.ref_mask
+            else:
+                attn_modules = None
             gn_modules = None
+            
         
         return attn_modules, gn_modules
 
