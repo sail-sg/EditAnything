@@ -120,7 +120,9 @@ def create_demo_template(
                         tool="sketch",
                     )
                     with gr.Column():
-                        ref_auto_prompt = gr.Checkbox(label="Ref. Auto Prompt", value=True)
+                        ref_auto_prompt = gr.Checkbox(
+                            label="Ref. Auto Prompt", value=True
+                        )
                         ref_prompt = gr.Textbox(
                             label="Prompt",
                             info="Text in the prompt of edited region",
@@ -151,7 +153,9 @@ def create_demo_template(
                             step=0.01,
                         )
                     with gr.Row():
-                        reference_adain = gr.Checkbox(label="reference_adain", value=True)
+                        reference_adain = gr.Checkbox(
+                            label="reference_adain", value=True
+                        )
                         gn_auto_machine_weight = gr.Slider(
                             label="gn_weight",
                             minimum=0,
@@ -180,8 +184,6 @@ def create_demo_template(
                         value=0.2,
                         step=0.1,
                     )
-                    
-                    
 
                 with gr.Accordion("Advanced options", open=False):
                     mask_image = gr.Image(
@@ -241,7 +243,8 @@ def create_demo_template(
                 result_text = gr.Text(label="BLIP2+Human Prompt Text")
 
         ips = [
-            source_image_brush,            ref_auto_prompt,
+            source_image_brush,
+            ref_auto_prompt,
             enable_all_generate,
             mask_image,
             control_scale,
