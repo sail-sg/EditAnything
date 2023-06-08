@@ -119,11 +119,13 @@ def create_demo_template(
                         type="pil",
                         tool="sketch",
                     )
-                    ref_prompt = gr.Textbox(
-                        label="Prompt",
-                        info="Text in the prompt of edited region",
-                        value="best quality, extremely detailed, ",
-                    )
+                    with gr.Column():
+                        ref_auto_prompt = gr.Checkbox(label="Ref. Auto Prompt", value=True)
+                        ref_prompt = gr.Textbox(
+                            label="Prompt",
+                            info="Text in the prompt of edited region",
+                            value="best quality, extremely detailed, ",
+                        )
                     # ref_image = gr.Image(
                     #     type="pil", interactive=True,
                     #     label="Image: Upload an image and click the region you want to use as reference.",
@@ -178,6 +180,8 @@ def create_demo_template(
                         value=0.2,
                         step=0.1,
                     )
+                    
+                    
 
                 with gr.Accordion("Advanced options", open=False):
                     mask_image = gr.Image(
@@ -237,7 +241,7 @@ def create_demo_template(
                 result_text = gr.Text(label="BLIP2+Human Prompt Text")
 
         ips = [
-            source_image_brush,
+            source_image_brush,            ref_auto_prompt,
             enable_all_generate,
             mask_image,
             control_scale,
@@ -265,6 +269,7 @@ def create_demo_template(
             ref_prompt,
             ref_sam_scale,
             ref_inpaint_scale,
+            ref_auto_prompt,
         ]
         run_button.click(
             fn=process,
@@ -306,6 +311,7 @@ def create_demo_template(
             ref_prompt,
             ref_sam_scale,
             ref_inpaint_scale,
+            ref_auto_prompt,
         ]
 
         run_button_click.click(

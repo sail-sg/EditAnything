@@ -674,7 +674,6 @@ class StableDiffusionReferencePipeline():
                 attn_modules = [module for module in torch_dfs(model) if isinstance(module, BasicTransformerBlock)]
                 attn_modules = sorted(attn_modules, key=lambda x: -x.norm1.normalized_shape[0])
                 for i, module in enumerate(attn_modules):
-                    print(i)
                     module._original_inner_forward = module.forward
                     module.forward = hacked_basic_transformer_inner_forward.__get__(module, BasicTransformerBlock)
                     module.bank = []
