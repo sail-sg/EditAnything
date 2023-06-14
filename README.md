@@ -10,6 +10,8 @@ Any forms of contribution and suggestion
 are very welcomed!
 
 # News🔥
+2023/06/09 - Support drag one concept from one image to anthor one. 
+
 2023/05/24 - Support multiple high-quality character editing: clothes, haircut, colored contact lenses. [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
 
 2023/05/22 - Support sketch to image by adjusting mask align strength in `sketch2image.py`!
