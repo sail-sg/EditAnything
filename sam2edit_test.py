@@ -50,6 +50,13 @@ def create_demo(process, process_image_click=None):
 
 
 if __name__ == "__main__":
+    # sd_models_path = snapshot_download("shgao/sdmodels")
+    # lora_model_path = hf_hub_download(
+    #     "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors")
+    # model = EditAnythingLoraModel(base_model_path="andite/anything-v4.0",
+    #                               lora_model_path=None, use_blip=True, extra_inpaint=True,
+    #                               lora_weight=0.5,
+    #                               )
     sd_models_path = snapshot_download("shgao/sdmodels")
     lora_model_path = hf_hub_download(
         "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors"
