@@ -2,8 +2,8 @@
 import os
 import gradio as gr
 from diffusers.utils import load_image
-from sam2edit_lora import EditAnythingLoraModel, config_dict
-from sam2edit_demo import create_demo_template
+from EditAnything.editany_lora import EditAnythingLoraModel, config_dict
+from EditAnything.editany_demo import create_demo_template
 from huggingface_hub import hf_hub_download, snapshot_download
 
 

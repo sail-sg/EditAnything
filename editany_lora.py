@@ -86,9 +86,11 @@ def init_sam_model(sam_generator=None, mask_predictor=None):
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
     sam_generator = (
-        SamAutomaticMaskGenerator(sam) if sam_generator is None else sam_generator
+        SamAutomaticMaskGenerator(
+            sam) if sam_generator is None else sam_generator
     )
-    mask_predictor = SamPredictor(sam) if mask_predictor is None else mask_predictor
+    mask_predictor = SamPredictor(
+        sam) if mask_predictor is None else mask_predictor
     return sam_generator, mask_predictor
 
 
@@ -307,7 +309,8 @@ def obtain_generation_model(
 ):
     controlnet = []
     controlnet.append(
-        ControlNetModel2.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+        ControlNetModel2.from_pretrained(
+            controlnet_path, torch_dtype=torch.float16)
     )  # sam control
     if (not generation_only) and extra_inpaint:  # inpainting control
         print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
@@ -483,7 +486,8 @@ class EditAnythingLoraModel:
     def get_click_mask(self, image, clicked_points):
         self.mask_predictor.set_image(image)
         # Separate the points and labels
-        points, labels = zip(*[(point[:2], point[2]) for point in clicked_points])
+        points, labels = zip(*[(point[:2], point[2])
+                             for point in clicked_points])
 
         # Convert the points and labels to numpy arrays
         input_point = np.array(points)
@@ -548,7 +552,8 @@ class EditAnythingLoraModel:
         overlay_image = cv2.addWeighted(
             edited_image,
             opacity_edited,
-            (mask_image * np.array([0 / 255, 255 / 255, 0 / 255])).astype(np.uint8),
+            (mask_image *
+             np.array([0 / 255, 255 / 255, 0 / 255])).astype(np.uint8),
             opacity_mask,
             0,
         )
@@ -621,7 +626,8 @@ class EditAnythingLoraModel:
                     input_image.shape,
                 )
                 mask_image = (
-                    np.ones((input_image.shape[0], input_image.shape[1], 3)) * 255
+                    np.ones((input_image.shape[0],
+                            input_image.shape[1], 3)) * 255
                 )
             else:
                 mask_image = source_image["mask"]
@@ -661,13 +667,16 @@ class EditAnythingLoraModel:
                 bbox = get_bounding_box(
                     np.array(ref_mask) / 255
                 )  # reverse the mask to make 1 the choosen region
-                cropped_ref_mask = ref_mask.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
-                cropped_ref_image = ref_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
+                cropped_ref_mask = ref_mask.crop(
+                    (bbox[0], bbox[1], bbox[2], bbox[3]))
+                cropped_ref_image = ref_image.crop(
+                    (bbox[0], bbox[1], bbox[2], bbox[3]))
                 # cropped_ref_image.save("debug.jpg")
                 cropped_ref_image = np.array(cropped_ref_image) * (
                     np.array(cropped_ref_mask)[:, :, :3] / 255.0
                 )
-                cropped_ref_image = Image.fromarray(cropped_ref_image.astype("uint8"))
+                cropped_ref_image = Image.fromarray(
+                    cropped_ref_image.astype("uint8"))
 
                 generated_prompt = self.get_blip2_text(cropped_ref_image)
                 ref_prompt += generated_prompt
@@ -729,7 +738,8 @@ class EditAnythingLoraModel:
             )
 
             if enable_all_generate and self.extra_inpaint:
-                self.pipe.safety_checker = lambda images, clip_input: (images, False)
+                self.pipe.safety_checker = lambda images, clip_input: (
+                    images, False)
                 if ref_image is not None:
                     print("Not support yet.")
                     return
@@ -756,17 +766,20 @@ class EditAnythingLoraModel:
                     ref_multi_condition_scale.append(float(ref_sam_scale))
                 if self.extra_inpaint:
                     inpaint_image = make_inpaint_condition(img, mask_image_tmp)
-                    multi_condition_image.append(inpaint_image.type(torch.float16))
+                    multi_condition_image.append(
+                        inpaint_image.type(torch.float16))
                     multi_condition_scale.append(1.0)
                     if ref_image is not None:
-                        ref_multi_condition_scale.append(float(ref_inpaint_scale))
+                        ref_multi_condition_scale.append(
+                            float(ref_inpaint_scale))
                 if use_scale_map:
                     scale_map_tmp = source_image["mask"]
                     tmp = HWC3(scale_map_tmp.astype(np.uint8))
                     scale_map_tmp = cv2.resize(
                         tmp, (W, H), interpolation=cv2.INTER_LINEAR)
                     scale_map_tmp = Image.fromarray(scale_map_tmp)
-                    controlnet_conditioning_scale_map = 1.0 - prepare_mask_image(scale_map_tmp).float()
+                    controlnet_conditioning_scale_map = 1.0 - \
+                        prepare_mask_image(scale_map_tmp).float()
                     print('scale map:', controlnet_conditioning_scale_map.size())
                 else:
                     controlnet_conditioning_scale_map = None
@@ -821,7 +834,8 @@ class EditAnythingLoraModel:
                 )
                 for i in range(num_samples):
                     img_tile = PIL.Image.fromarray(
-                        resize_image(np.array(x_samples[i]), refine_image_resolution)
+                        resize_image(
+                            np.array(x_samples[i]), refine_image_resolution)
                     )
                     if i == 0:
                         mask_image_tile = cv2.resize(
@@ -851,7 +865,7 @@ class EditAnythingLoraModel:
                         x_samples_tile = self.tile_pipe(
                             image=img_tile,
                             mask_image=mask_image_tile,
-                            prompt_embeds=prompt_embeds, 
+                            prompt_embeds=prompt_embeds,
                             negative_prompt_embeds=negative_prompt_embeds,
                             num_images_per_prompt=1,
                             num_inference_steps=ddim_steps,

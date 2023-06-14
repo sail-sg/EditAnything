@@ -29,7 +29,8 @@ model.only_mid_control = only_mid_control
 
 # Misc
 dataset = SAMDataset(data_path=data_path, txt_path=txt_path)
-dataloader = DataLoader(dataset, num_workers=16, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=16,
+                        batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
 trainer = pl.Trainer(gpus=8, strategy="ddp", precision=32, callbacks=[logger])
 
