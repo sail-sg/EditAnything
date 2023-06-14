@@ -150,10 +150,8 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     concat_embeds = []
     neg_embeds = []
     for i in range(0, shape_max_length, max_length):
-        concat_embeds.append(pipeline.text_encoder(
-            input_ids[:, i: i + max_length])[0])
-        neg_embeds.append(pipeline.text_encoder(
-            negative_ids[:, i: i + max_length])[0])
+        concat_embeds.append(pipeline.text_encoder(input_ids[:, i : i + max_length])[0])
+        neg_embeds.append(pipeline.text_encoder(negative_ids[:, i : i + max_length])[0])
 
     return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
 
@@ -178,12 +176,10 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
         for layer, elems in updates.items():
 
             if "text" in layer:
-                layer_infos = layer.split(
-                    LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
                 curr_layer = pipeline.text_encoder
             else:
-                layer_infos = layer.split(
-                    LORA_PREFIX_UNET + "_")[-1].split("_")
+                layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
                 curr_layer = pipeline.unet
 
             # find the target layer
@@ -246,8 +242,7 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
                     )
                     curr_layer = pipeline.text_encoder
                 else:
-                    layer_infos = layer.split(
-                        LORA_PREFIX_UNET + "_")[-1].split("_")
+                    layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
                     curr_layer = pipeline.unet
 
                 # find the target layer
@@ -537,8 +532,7 @@ class EditAnythingLoraModel:
         mask_click_np = np.transpose(mask_click_np, (1, 2, 0)) * 255.0
 
         mask_image = HWC3(mask_click_np.astype(np.uint8))
-        mask_image = cv2.resize(
-            mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
+        mask_image = cv2.resize(mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
         # mask_image = Image.fromarray(mask_image_tmp)
 
         # Draw circles for all clicked points
