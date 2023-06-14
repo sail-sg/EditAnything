@@ -21,7 +21,7 @@ from safetensors.torch import load_file
 from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
-from utils.stable_diffusion_controlnet_inpaint_ref import (
+from utils.stable_diffusion_controlnet_inpaint import (
     StableDiffusionControlNetInpaintPipeline,
 )
 
