@@ -432,6 +432,7 @@ class EditAnythingLoraModel:
         self.lora_model_path = lora_model_path
         self.defalut_enable_all_generate = False
         self.extra_inpaint = extra_inpaint
+        self.last_ref_infer = False
         self.pipe = obtain_generation_model(
             base_model_path,
             lora_model_path,
@@ -611,7 +612,6 @@ class EditAnythingLoraModel:
                     enable_all_generate,
                     self.extra_inpaint,
                 )
-
                 self.defalut_enable_all_generate = enable_all_generate
             if enable_all_generate:
                 print(
@@ -643,6 +643,15 @@ class EditAnythingLoraModel:
             )
             self.default_controlnet_path = this_controlnet_path
             torch.cuda.empty_cache()
+        if self.last_ref_infer and ref_image is None:
+            print("Redefine the model to overwrite the ref mode")
+            self.pipe = obtain_generation_model(
+                self.base_model_path,
+                self.lora_model_path,
+                this_controlnet_path,
+                enable_all_generate,
+                self.extra_inpaint,
+            )
 
         if ref_image is not None:
             ref_mask = ref_image["mask"]
@@ -664,9 +673,6 @@ class EditAnythingLoraModel:
                 a_prompt += generated_prompt
             print("Generated ref text:", ref_prompt)
             print("Generated input text:", a_prompt)
-
-            # ref_image = cropped_ref_image
-            # ref_mask = cropped_ref_mask
 
         else:
             ref_mask = None
@@ -744,8 +750,8 @@ class EditAnythingLoraModel:
                 multi_condition_scale = []
                 multi_condition_image.append(control.type(torch.float16))
                 multi_condition_scale.append(float(control_scale))
+                ref_multi_condition_scale = []
                 if ref_image is not None:
-                    ref_multi_condition_scale = []
                     ref_multi_condition_scale.append(float(ref_sam_scale))
                 if self.extra_inpaint:
                     inpaint_image = make_inpaint_condition(img, mask_image_tmp)

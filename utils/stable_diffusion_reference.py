@@ -950,15 +950,10 @@ class StableDiffusionReferencePipeline:
                         module.var_bank0 = []
                     module.mean_bank = []
                     module.var_bank = []
-                    # print(i)
-                    # print("before", module.gn_weight)
-                    # module.gn_weight *= 2
-                    # print("after", module.gn_weight)
                     module.attention_auto_machine_weight = (
                         self.attention_auto_machine_weight
                     )
                     module.gn_auto_machine_weight = self.gn_auto_machine_weight
-                    # print(module.gn_auto_machine_weight)
                     module.do_classifier_free_guidance = (
                         self.do_classifier_free_guidance
                     )
