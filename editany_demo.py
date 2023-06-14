@@ -33,7 +33,8 @@ def create_demo_template(
                     with gr.Column():
                         with gr.Row():
                             point_prompt = gr.Radio(
-                                choices=["Foreground Point", "Background Point"],
+                                choices=["Foreground Point",
+                                         "Background Point"],
                                 value="Foreground Point",
                                 label="Point Label",
                                 interactive=True,
@@ -56,7 +57,8 @@ def create_demo_template(
                         type="numpy",
                         tool="sketch",
                     )
-                    run_button = gr.Button(label="Run EditAnying", interactive=True)
+                    run_button = gr.Button(
+                        label="Run EditAnying", interactive=True)
                 with gr.Column():
                     enable_all_generate = gr.Checkbox(
                         label="Auto generation on all region.", value=False
@@ -144,7 +146,8 @@ def create_demo_template(
                     #         ref_clear_button_image = gr.Button(
                     #             value="Clear Image", interactive=True)
                     with gr.Row():
-                        reference_attn = gr.Checkbox(label="reference_attn", value=True)
+                        reference_attn = gr.Checkbox(
+                            label="reference_attn", value=True)
                         attention_auto_machine_weight = gr.Slider(
                             label="attention_weight",
                             minimum=0,
@@ -261,7 +264,7 @@ def create_demo_template(
             enable_tile,
             refine_alignment_ratio,
             refine_image_resolution,
-            alpha_weight, 
+            alpha_weight,
             use_scale_map,
             condition_model,
             ref_image,
@@ -305,7 +308,7 @@ def create_demo_template(
             enable_tile,
             refine_alignment_ratio,
             refine_image_resolution,
-            alpha_weight, 
+            alpha_weight,
             use_scale_map,
             condition_model,
             ref_image,
@@ -338,7 +341,8 @@ def create_demo_template(
         )
         source_image_click.select(
             process_image_click,
-            inputs=[origin_image, point_prompt, clicked_points, image_resolution],
+            inputs=[origin_image, point_prompt,
+                    clicked_points, image_resolution],
             outputs=[source_image_click, clicked_points, click_mask],
             show_progress=True,
             queue=True,

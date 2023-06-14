@@ -2,8 +2,8 @@
 import os
 import gradio as gr
 from diffusers.utils import load_image
-from sam2edit_lora import EditAnythingLoraModel, config_dict
-from sam2edit_demo import create_demo_template
+from EditAnything.editany_lora import EditAnythingLoraModel, config_dict
+from EditAnything.editany_demo import create_demo_template
 from huggingface_hub import hf_hub_download, snapshot_download
 
 
@@ -50,19 +50,13 @@ def create_demo(process, process_image_click=None):
 
 
 if __name__ == "__main__":
-    # sd_models_path = snapshot_download("shgao/sdmodels")
-    # lora_model_path = hf_hub_download(
-    #     "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors")
-    # model = EditAnythingLoraModel(base_model_path="andite/anything-v4.0",
-    #                               lora_model_path=None, use_blip=True, extra_inpaint=True,
-    #                               lora_weight=0.5,
-    #                               )
     sd_models_path = snapshot_download("shgao/sdmodels")
     lora_model_path = hf_hub_download(
         "mlida/Cute_girl_mix4", "cuteGirlMix4_v10.safetensors"
     )
     model = EditAnythingLoraModel(
-        base_model_path=os.path.join(sd_models_path, "chilloutmix_NiPrunedFp32Fix"),
+        base_model_path=os.path.join(
+            sd_models_path, "chilloutmix_NiPrunedFp32Fix"),
         lora_model_path=lora_model_path,
         use_blip=True,
         extra_inpaint=True,
