@@ -21,14 +21,15 @@ from safetensors.torch import load_file
 from collections import defaultdict
 from diffusers import StableDiffusionControlNetPipeline
 from diffusers import ControlNetModel, UniPCMultistepScheduler
-from utils.stable_diffusion_controlnet_inpaint import (
-    StableDiffusionControlNetInpaintPipeline,
-)
 
+from utils.stable_diffusion_controlnet import ControlNetModel2
+from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetInpaintPipeline, \
+    StableDiffusionControlNetInpaintMixingPipeline, prepare_mask_image
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
 from diffusers import ControlNetModel, DiffusionPipeline
+from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 import PIL.Image
 
 # Segment-Anything init.
@@ -157,8 +158,8 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
     LORA_PREFIX_UNET = "lora_unet"
     LORA_PREFIX_TEXT_ENCODER = "lora_te"
     # load LoRA weight from .safetensors
+    print('device: {}'.format(device))
     if isinstance(checkpoint_path, str):
-
         state_dict = load_file(checkpoint_path, device=device)
 
         updates = defaultdict(dict)
@@ -286,10 +287,7 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
 
 
 def make_inpaint_condition(image, image_mask):
-    # image = np.array(image.convert("RGB")).astype(np.float32) / 255.0
     image = image / 255.0
-    # print("img", image.max(), image.min(), image_mask.max(), image_mask.min())
-    # image_mask = np.array(image_mask.convert("L"))
     assert (
         image.shape[0:1] == image_mask.shape[0:1]
     ), "image and image_mask must have the same image size"
@@ -309,7 +307,7 @@ def obtain_generation_model(
 ):
     controlnet = []
     controlnet.append(
-        ControlNetModel.from_pretrained(controlnet_path, torch_dtype=torch.float16)
+        ControlNetModel2.from_pretrained(controlnet_path, torch_dtype=torch.float16)
     )  # sam control
     if (not generation_only) and extra_inpaint:  # inpainting control
         print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
@@ -347,7 +345,7 @@ def obtain_generation_model(
 
 
 def obtain_tile_model(base_model_path, lora_model_path, lora_weight=1.0):
-    controlnet = ControlNetModel.from_pretrained(
+    controlnet = ControlNetModel2.from_pretrained(
         "lllyasviel/control_v11f1e_sd15_tile", torch_dtype=torch.float16
     )  # tile controlnet
     if (
@@ -421,6 +419,7 @@ class EditAnythingLoraModel:
         extra_inpaint=True,
         tile_model=None,
         lora_weight=1.0,
+        alpha_mixing=None,
         mask_predictor=None,
     ):
         self.device = device
@@ -581,6 +580,8 @@ class EditAnythingLoraModel:
         enable_tile=True,
         refine_alignment_ratio=None,
         refine_image_resolution=None,
+        alpha_weight=0.5,
+        use_scale_map=False,
         condition_model=None,
         ref_image=None,
         attention_auto_machine_weight=1.0,
@@ -759,31 +760,58 @@ class EditAnythingLoraModel:
                     multi_condition_scale.append(1.0)
                     if ref_image is not None:
                         ref_multi_condition_scale.append(float(ref_inpaint_scale))
+                if use_scale_map:
+                    scale_map_tmp = source_image["mask"]
+                    tmp = HWC3(scale_map_tmp.astype(np.uint8))
+                    scale_map_tmp = cv2.resize(
+                        tmp, (W, H), interpolation=cv2.INTER_LINEAR)
+                    scale_map_tmp = Image.fromarray(scale_map_tmp)
+                    controlnet_conditioning_scale_map = 1.0 - prepare_mask_image(scale_map_tmp).float()
+                    print('scale map:', controlnet_conditioning_scale_map.size())
+                else:
+                    controlnet_conditioning_scale_map = None
 
-                x_samples = self.pipe(
-                    image=img,
-                    mask_image=mask_image,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=negative_prompt_embeds,
-                    num_images_per_prompt=num_samples,
-                    num_inference_steps=ddim_steps,
-                    generator=generator,
-                    controlnet_conditioning_image=multi_condition_image,
-                    height=H,
-                    width=W,
-                    controlnet_conditioning_scale=multi_condition_scale,
-                    guidance_scale=scale,
-                    ref_image=ref_image,
-                    ref_mask=ref_mask,
-                    ref_prompt=ref_prompt,
-                    attention_auto_machine_weight=attention_auto_machine_weight,
-                    gn_auto_machine_weight=gn_auto_machine_weight,
-                    style_fidelity=style_fidelity,
-                    reference_attn=reference_attn,
-                    reference_adain=reference_adain,
-                    ref_controlnet_conditioning_scale=ref_multi_condition_scale,
-                    guess_mode=guess_mode,
-                ).images
+                if isinstance(self.pipe, StableDiffusionControlNetInpaintMixingPipeline):
+                    x_samples = self.pipe(
+                        image=img,
+                        mask_image=mask_image,
+                        prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                        num_images_per_prompt=num_samples,
+                        num_inference_steps=ddim_steps,
+                        generator=generator,
+                        controlnet_conditioning_image=multi_condition_image,
+                        height=H,
+                        width=W,
+                        controlnet_conditioning_scale=multi_condition_scale,
+                        guidance_scale=scale,
+                        alpha_weight=alpha_weight,
+                        controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
+                    ).images
+                else:
+                    x_samples = self.pipe(
+                        image=img,
+                        mask_image=mask_image,
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=negative_prompt_embeds,
+                        num_images_per_prompt=num_samples,
+                        num_inference_steps=ddim_steps,
+                        generator=generator,
+                        controlnet_conditioning_image=multi_condition_image,
+                        height=H,
+                        width=W,
+                        controlnet_conditioning_scale=multi_condition_scale,
+                        guidance_scale=scale,
+                        ref_image=ref_image,
+                        ref_mask=ref_mask,
+                        ref_prompt=ref_prompt,
+                        attention_auto_machine_weight=attention_auto_machine_weight,
+                        gn_auto_machine_weight=gn_auto_machine_weight,
+                        style_fidelity=style_fidelity,
+                        reference_attn=reference_attn,
+                        reference_adain=reference_adain,
+                        ref_controlnet_conditioning_scale=ref_multi_condition_scale,
+                        guess_mode=guess_mode,
+                    ).images
             results = [x_samples[i] for i in range(num_samples)]
 
             results_tile = []
@@ -802,22 +830,40 @@ class EditAnythingLoraModel:
                             interpolation=cv2.INTER_LINEAR,
                         )
                         mask_image_tile = Image.fromarray(mask_image_tile)
-                    x_samples_tile = self.tile_pipe(
-                        image=img_tile,
-                        mask_image=mask_image_tile,
-                        prompt_embeds=prompt_embeds,
-                        negative_prompt_embeds=negative_prompt_embeds,
-                        num_images_per_prompt=1,
-                        num_inference_steps=ddim_steps,
-                        generator=generator,
-                        controlnet_conditioning_image=img_tile,
-                        height=img_tile.size[1],
-                        width=img_tile.size[0],
-                        controlnet_conditioning_scale=1.0,
-                        alignment_ratio=refine_alignment_ratio,
-                        guidance_scale=scale,
-                        guess_mode=guess_mode,
-                    ).images
+                    if isinstance(self.pipe, StableDiffusionControlNetInpaintMixingPipeline):
+                        x_samples_tile = self.tile_pipe(
+                            image=img_tile,
+                            mask_image=mask_image_tile,
+                            prompt_embeds=prompt_embeds, negative_prompt_embeds=negative_prompt_embeds,
+                            num_images_per_prompt=1,
+                            num_inference_steps=ddim_steps,
+                            generator=generator,
+                            controlnet_conditioning_image=img_tile,
+                            height=img_tile.size[1],
+                            width=img_tile.size[0],
+                            controlnet_conditioning_scale=1.0,
+                            alignment_ratio=refine_alignment_ratio,
+                            guidance_scale=scale,
+                            alpha_weight=alpha_weight,
+                            controlnet_conditioning_scale_map=controlnet_conditioning_scale_map
+                        ).images
+                    else:
+                        x_samples_tile = self.tile_pipe(
+                            image=img_tile,
+                            mask_image=mask_image_tile,
+                            prompt_embeds=prompt_embeds, 
+                            negative_prompt_embeds=negative_prompt_embeds,
+                            num_images_per_prompt=1,
+                            num_inference_steps=ddim_steps,
+                            generator=generator,
+                            controlnet_conditioning_image=img_tile,
+                            height=img_tile.size[1],
+                            width=img_tile.size[0],
+                            controlnet_conditioning_scale=1.0,
+                            alignment_ratio=refine_alignment_ratio,
+                            guidance_scale=scale,
+                            guess_mode=guess_mode,
+                        ).images
                     results_tile += x_samples_tile
 
         return results_tile, results, [full_segmask, mask_image], postive_prompt

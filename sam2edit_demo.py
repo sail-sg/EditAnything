@@ -218,12 +218,12 @@ def create_demo_template(
                         label="Steps", minimum=1, maximum=100, value=30, step=1
                     )
                     scale = gr.Slider(
-                        label="Guidance Scale",
-                        minimum=0.1,
-                        maximum=30.0,
-                        value=9.0,
-                        step=0.1,
-                    )
+                        label="Guidance Scale", minimum=0.1, maximum=30.0, value=9.0, step=0.1)
+                    alpha_weight = gr.Slider(
+                        label="Alpha weight", info="Alpha mixing with original image", minimum=0,
+                        maximum=1, value=0.0, step=0.1)
+                    use_scale_map = gr.Checkbox(
+                        label='Use scale map', value=False)
                     eta = gr.Number(label="eta (DDIM)", value=0.0)
                     condition_model = gr.Textbox(
                         label="Condition model path",
@@ -261,6 +261,8 @@ def create_demo_template(
             enable_tile,
             refine_alignment_ratio,
             refine_image_resolution,
+            alpha_weight, 
+            use_scale_map,
             condition_model,
             ref_image,
             attention_auto_machine_weight,
@@ -303,6 +305,8 @@ def create_demo_template(
             enable_tile,
             refine_alignment_ratio,
             refine_image_resolution,
+            alpha_weight, 
+            use_scale_map,
             condition_model,
             ref_image,
             attention_auto_machine_weight,
@@ -357,31 +361,6 @@ def create_demo_template(
                 result_text,
             ],
         )
-
-        # ref_image.upload(
-        #     lambda image: image.copy() if image is not None else None,
-        #     inputs=[ref_image],
-        #     outputs=[ref_origin_image]
-        # )
-        # ref_image.select(
-        #     process_image_click,
-        #     inputs=[ref_origin_image, ref_point_prompt,
-        #             ref_clicked_points, image_resolution],
-        #     outputs=[ref_image, ref_clicked_points, ref_click_mask],
-        #     show_progress=True, queue=True
-        # )
-        # ref_clear_button_click.click(
-        #     fn=lambda ref_original_image: (ref_original_image.copy(), [], None)
-        #     if ref_original_image is not None else (None, [], None),
-        #     inputs=[ref_origin_image],
-        #     outputs=[ref_image, ref_clicked_points, ref_click_mask]
-        # )
-        # ref_clear_button_image.click(
-        #     fn=lambda: (None, [], None, None, None),
-        #     inputs=[],
-        #     outputs=[ref_image, ref_clicked_points,
-        #              ref_click_mask, result_gallery_init, result_text]
-        # )
 
         if examples is not None:
             with gr.Row():
