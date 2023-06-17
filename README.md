@@ -57,7 +57,8 @@ are very welcomed!
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
 ## Unleash creative fusion: Cross-image region drag and merge!🔥
 <img width="1268" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/7f997db8-d2ea-4341-a7d7-dfe8ac5dd338">
-<img width="1278" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/153454c3-051d-4b30-843f-aa8d7296f6d5">
+<img width="1283" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/da34126c-d0fc-4020-85b6-1d99bed806e1">
+
 
 
 
