@@ -1,11 +1,11 @@
 import gradio as gr
 import os
 
-from sam2edit import create_demo as create_demo_edit_anything
+from editany import create_demo as create_demo_edit_anything
 from sam2image import create_demo as create_demo_generate_anything
-from sam2edit_beauty import create_demo as create_demo_beauty
-from sam2edit_handsome import create_demo as create_demo_handsome
-from sam2edit_lora import EditAnythingLoraModel, init_sam_model, init_blip_processor, init_blip_model
+from editany_beauty import create_demo as create_demo_beauty
+from editany_handsome import create_demo as create_demo_handsome
+from editany_lora import EditAnythingLoraModel, init_sam_model, init_blip_processor, init_blip_model
 from huggingface_hub import hf_hub_download, snapshot_download
 
 DESCRIPTION = f'''# [Edit Anything](https://github.com/sail-sg/EditAnything)
