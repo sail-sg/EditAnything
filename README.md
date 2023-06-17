@@ -10,9 +10,9 @@ Any forms of contribution and suggestion
 are very welcomed!
 
 # News🔥
-2023/06/09 - Support drag one concept from one image to anthor one. 
+2023/06/09 - Support cross-image region drag and merge, unleash creative fusion!
 
-2023/05/24 - Support multiple high-quality character editing: clothes, haircut, colored contact lenses. [DEMO](https://huggingface.co/spaces/shgao/EditAnything)
+2023/05/24 - Support multiple high-quality character editing: clothes, haircut, colored contact lenses.
 
 2023/05/22 - Support sketch to image by adjusting mask align strength in `sketch2image.py`!
 
@@ -55,6 +55,11 @@ are very welcomed!
 # Features
 
 **Try our [![HuggingFace DEMO](https://img.shields.io/badge/🤗-HuggingFace%20Space-cyan.svg)](https://huggingface.co/spaces/shgao/EditAnything)🔥🔥🔥**
+## Unleash creative fusion: Cross-image region drag and merge!🔥
+<img width="1268" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/7f997db8-d2ea-4341-a7d7-dfe8ac5dd338">
+<img width="1278" alt="image" src="https://github.com/sail-sg/EditAnything/assets/20515144/153454c3-051d-4b30-843f-aa8d7296f6d5">
+
+
 
 
 ## Clothes editing!🔥
