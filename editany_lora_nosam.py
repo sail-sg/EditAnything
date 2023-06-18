@@ -308,10 +308,10 @@ def obtain_generation_model(
     lora_weight=1.0,
 ):
     controlnet = []
-    controlnet.append(
-        ControlNetModel2.from_pretrained(
-            controlnet_path, torch_dtype=torch.float16)
-    )  # sam control
+    # controlnet.append(
+    #     ControlNetModel2.from_pretrained(
+    #         controlnet_path, torch_dtype=torch.float16)
+    # )  # sam control
     if (not generation_only) and extra_inpaint:  # inpainting control
         print("Warning: ControlNet based inpainting model only support SD1.5 for now.")
         controlnet.append(
@@ -683,8 +683,6 @@ class EditAnythingLoraModel:
                 a_prompt += generated_prompt
             print("Generated ref text:", ref_prompt)
             print("Generated input text:", a_prompt)
-            # ref_image = cropped_ref_image
-            # ref_mask = cropped_ref_mask
 
         else:
             ref_mask = None
@@ -761,8 +759,8 @@ class EditAnythingLoraModel:
             else:
                 multi_condition_image = []
                 multi_condition_scale = []
-                multi_condition_image.append(control.type(torch.float16))
-                multi_condition_scale.append(float(control_scale))
+                # multi_condition_image.append(control.type(torch.float16))
+                # multi_condition_scale.append(float(control_scale))
                 ref_multi_condition_scale = []
                 if ref_image is not None:
                     ref_multi_condition_scale.append(float(ref_sam_scale))

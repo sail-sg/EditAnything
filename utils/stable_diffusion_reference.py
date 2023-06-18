@@ -57,31 +57,6 @@ def torch_dfs(model: torch.nn.Module):
 
 
 class StableDiffusionReferencePipeline:
-    # def _default_height_width(self, height, width, image):
-    #     # NOTE: It is possible that a list of images have different
-    #     # dimensions for each image, so just checking the first image
-    #     # is not _exactly_ correct, but it is simple.
-    #     while isinstance(image, list):
-    #         image = image[0]
-
-    #     if height is None:
-    #         if isinstance(image, PIL.Image.Image):
-    #             height = image.height
-    #         elif isinstance(image, torch.Tensor):
-    #             height = image.shape[2]
-
-    #         height = (height // 8) * 8  # round down to nearest multiple of 8
-
-    #     if width is None:
-    #         if isinstance(image, PIL.Image.Image):
-    #             width = image.width
-    #         elif isinstance(image, torch.Tensor):
-    #             width = image.shape[3]
-
-    #         width = (width // 8) * 8  # round down to nearest multiple of 8
-
-    #     return height, width
-
     def prepare_ref_image(
         self,
         image,
@@ -151,7 +126,7 @@ class StableDiffusionReferencePipeline:
         # encode the mask image into latents space so we can concatenate it to the latents
         if isinstance(generator, list):
             ref_image_latents = [
-                self.vae.encode(refimage[i : i + 1]).latent_dist.sample(
+                self.vae.encode(refimage[i: i + 1]).latent_dist.sample(
                     generator=generator[i]
                 )
                 for i in range(batch_size)
@@ -367,7 +342,8 @@ class StableDiffusionReferencePipeline:
 
             if self.use_ada_layer_norm_zero:
                 norm_hidden_states = (
-                    norm_hidden_states * (1 + scale_mlp[:, None]) + shift_mlp[:, None]
+                    norm_hidden_states *
+                    (1 + scale_mlp[:, None]) + shift_mlp[:, None]
                 )
 
             ff_output = self.ff(norm_hidden_states)
@@ -411,20 +387,37 @@ class StableDiffusionReferencePipeline:
                     and len(self.var_bank) > 0
                 ):
                     # print("hacked_mid_forward")
-                    var, mean = torch.var_mean(
-                        x, dim=(2, 3), keepdim=True, correction=0
+                    scale_ratio = self.inpaint_mask.shape[2] / x.shape[2]
+                    this_inpaint_mask = F.interpolate(
+                        self.inpaint_mask.to(x.device), scale_factor=1 / scale_ratio
                     )
-                    std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                    this_inpaint_mask = this_inpaint_mask.repeat(
+                        x.shape[0], x.shape[1], 1, 1
+                    ).bool()
+                    masked_x = (
+                        x[this_inpaint_mask]
+                        .detach()
+                        .clone()
+                        .view(x.shape[0], x.shape[1], -1, 1)
+                    )
+                    var, mean = torch.var_mean(
+                        masked_x, dim=(2, 3), keepdim=True, correction=0
+                    )
+                    std = torch.maximum(
+                        var, torch.zeros_like(var) + eps) ** 0.5
                     mean_acc = sum(self.mean_bank) / float(len(self.mean_bank))
                     var_acc = sum(self.var_bank) / float(len(self.var_bank))
                     std_acc = (
-                        torch.maximum(var_acc, torch.zeros_like(var_acc) + eps) ** 0.5
+                        torch.maximum(var_acc, torch.zeros_like(
+                            var_acc) + eps) ** 0.5
                     )
-                    x_uc = (((x - mean) / std) * std_acc) + mean_acc
+                    x_uc = (((masked_x - mean) / std) * std_acc) + mean_acc
                     x_c = x_uc.clone()
                     if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                        x_c[self.uc_mask] = x[self.uc_mask]
-                    x = self.style_fidelity * x_c + (1.0 - self.style_fidelity) * x_uc
+                        x_c[self.uc_mask] = masked_x[self.uc_mask]
+                    masked_x = self.style_fidelity * x_c + \
+                        (1.0 - self.style_fidelity) * x_uc
+                    x[this_inpaint_mask] = masked_x.view(-1)
                 self.mean_bank = []
                 self.var_bank = []
             return x
@@ -449,7 +442,8 @@ class StableDiffusionReferencePipeline:
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # var, mean = torch.var_mean(hidden_states, dim=(2, 3), keepdim=True, correction=0)
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -474,29 +468,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank0) > 0
                         and len(self.var_bank0) > 0
                     ):
-                        # print("hacked_CrossAttnDownBlock2D_forward0")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hacked_CrossAttnDownBlock2D_forward0")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank0[i]) / float(
                             len(self.mean_bank0[i])
                         )
-                        var_acc = sum(self.var_bank0[i]) / float(len(self.var_bank0[i]))
+                        var_acc = sum(
+                            self.var_bank0[i]) / float(len(self.var_bank0[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
                 hidden_states = attn(
                     hidden_states,
@@ -509,7 +522,8 @@ class StableDiffusionReferencePipeline:
                 if self.MODE == "write":
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -534,29 +548,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        # print("hack_CrossAttnDownBlock2D_forward")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hack_CrossAttnDownBlock2D_forward")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank[i]) / float(
                             len(self.mean_bank[i])
                         )
-                        var_acc = sum(self.var_bank[i]) / float(len(self.var_bank[i]))
+                        var_acc = sum(
+                            self.var_bank[i]) / float(len(self.var_bank[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
                 output_states = output_states + (hidden_states,)
 
@@ -586,7 +619,8 @@ class StableDiffusionReferencePipeline:
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # var, mean = torch.var_mean(hidden_states, dim=(2, 3), keepdim=True, correction=0)
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -611,29 +645,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        # print("hacked_DownBlock2D_forward")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hacked_DownBlock2D_forward")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank[i]) / float(
                             len(self.mean_bank[i])
                         )
-                        var_acc = sum(self.var_bank[i]) / float(len(self.var_bank[i]))
+                        var_acc = sum(
+                            self.var_bank[i]) / float(len(self.var_bank[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
                 output_states = output_states + (hidden_states,)
 
@@ -666,14 +719,16 @@ class StableDiffusionReferencePipeline:
                 # pop res hidden states
                 res_hidden_states = res_hidden_states_tuple[-1]
                 res_hidden_states_tuple = res_hidden_states_tuple[:-1]
-                hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+                hidden_states = torch.cat(
+                    [hidden_states, res_hidden_states], dim=1)
                 hidden_states = resnet(hidden_states, temb)
 
                 if self.MODE == "write":
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # var, mean = torch.var_mean(hidden_states, dim=(2, 3), keepdim=True, correction=0)
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -698,29 +753,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank0) > 0
                         and len(self.var_bank0) > 0
                     ):
-                        # print("hacked_CrossAttnUpBlock2D_forward1")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hacked_CrossAttnUpBlock2D_forward1")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank0[i]) / float(
                             len(self.mean_bank0[i])
                         )
-                        var_acc = sum(self.var_bank0[i]) / float(len(self.var_bank0[i]))
+                        var_acc = sum(
+                            self.var_bank0[i]) / float(len(self.var_bank0[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
                 hidden_states = attn(
                     hidden_states,
@@ -735,7 +809,8 @@ class StableDiffusionReferencePipeline:
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # var, mean = torch.var_mean(hidden_states, dim=(2, 3), keepdim=True, correction=0)
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -760,29 +835,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        # print("hacked_CrossAttnUpBlock2D_forward")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hacked_CrossAttnUpBlock2D_forward")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank[i]) / float(
                             len(self.mean_bank[i])
                         )
-                        var_acc = sum(self.var_bank[i]) / float(len(self.var_bank[i]))
+                        var_acc = sum(
+                            self.var_bank[i]) / float(len(self.var_bank[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
             if self.MODE == "read":
                 self.mean_bank0 = []
@@ -804,14 +898,16 @@ class StableDiffusionReferencePipeline:
                 # pop res hidden states
                 res_hidden_states = res_hidden_states_tuple[-1]
                 res_hidden_states_tuple = res_hidden_states_tuple[:-1]
-                hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+                hidden_states = torch.cat(
+                    [hidden_states, res_hidden_states], dim=1)
                 hidden_states = resnet(hidden_states, temb)
 
                 if self.MODE == "write":
                     if self.gn_auto_machine_weight >= self.gn_weight:
                         # var, mean = torch.var_mean(hidden_states, dim=(2, 3), keepdim=True, correction=0)
                         # mask var mean
-                        scale_ratio = self.ref_mask.shape[2] / hidden_states.shape[2]
+                        scale_ratio = self.ref_mask.shape[2] / \
+                            hidden_states.shape[2]
                         this_ref_mask = F.interpolate(
                             self.ref_mask.to(hidden_states.device),
                             scale_factor=1 / scale_ratio,
@@ -836,29 +932,48 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        # print("hacked_UpBlock2D_forward")
-                        var, mean = torch.var_mean(
-                            hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        print("hacked_UpBlock2D_forward")
+                        scale_ratio = self.inpaint_mask.shape[2] / \
+                            hidden_states.shape[2]
+                        this_inpaint_mask = F.interpolate(
+                            self.inpaint_mask.to(hidden_states.device), scale_factor=1 / scale_ratio
                         )
-                        std = torch.maximum(var, torch.zeros_like(var) + eps) ** 0.5
+                        this_inpaint_mask = this_inpaint_mask.repeat(
+                            hidden_states.shape[0], hidden_states.shape[1], 1, 1
+                        ).bool()
+                        masked_hidden_states = (
+                            hidden_states[this_inpaint_mask]
+                            .detach()
+                            .clone()
+                            .view(hidden_states.shape[0], hidden_states.shape[1], -1, 1)
+                        )
+                        var, mean = torch.var_mean(
+                            masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
+                        )
+                        std = torch.maximum(
+                            var, torch.zeros_like(var) + eps) ** 0.5
                         mean_acc = sum(self.mean_bank[i]) / float(
                             len(self.mean_bank[i])
                         )
-                        var_acc = sum(self.var_bank[i]) / float(len(self.var_bank[i]))
+                        var_acc = sum(
+                            self.var_bank[i]) / float(len(self.var_bank[i]))
                         std_acc = (
-                            torch.maximum(var_acc, torch.zeros_like(var_acc) + eps)
+                            torch.maximum(
+                                var_acc, torch.zeros_like(var_acc) + eps)
                             ** 0.5
                         )
                         hidden_states_uc = (
-                            ((hidden_states - mean) / std) * std_acc
+                            ((masked_hidden_states - mean) / std) * std_acc
                         ) + mean_acc
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
-                            hidden_states_c[self.uc_mask] = hidden_states[self.uc_mask]
-                        hidden_states = (
+                            hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
+                        masked_hidden_states = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
+                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+                            -1)
 
             if self.MODE == "read":
                 self.mean_bank = []
@@ -963,6 +1078,7 @@ class StableDiffusionReferencePipeline:
                     module.uc_mask = self.uc_mask
                     module.style_fidelity = self.style_fidelity
                     module.ref_mask = self.ref_mask
+                    module.inpaint_mask = self.inpaint_mask
             else:
                 gn_modules = None
         elif model_type == "controlnet":
@@ -982,7 +1098,8 @@ class StableDiffusionReferencePipeline:
                         module, BasicTransformerBlock
                     )
                     module.bank = []
-                    module.attn_weight = 0.0  # float(i) / float(len(attn_modules))
+                    # float(i) / float(len(attn_modules))
+                    module.attn_weight = 0.0
                     module.attention_auto_machine_weight = (
                         self.attention_auto_machine_weight
                     )

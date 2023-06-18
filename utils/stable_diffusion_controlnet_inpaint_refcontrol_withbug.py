@@ -1493,6 +1493,7 @@ class StableDiffusionControlNetInpaintPipeline(
                 generator,
                 do_classifier_free_guidance,
             )
+            ref_latents = None
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -1512,7 +1513,6 @@ class StableDiffusionControlNetInpaintPipeline(
             self.do_classifier_free_guidance = do_classifier_free_guidance
             self.style_fidelity = style_fidelity
             self.ref_mask = ref_mask
-            self.inpaint_mask = mask_image
             attn_modules, gn_modules = self.redefine_ref_model(
                 self.unet, reference_attn, reference_adain, model_type="unet"
             )
@@ -1563,6 +1563,15 @@ class StableDiffusionControlNetInpaintPipeline(
                         ),
                     )
                     ref_xt = self.scheduler.scale_model_input(ref_xt, t)
+                    if t>100:
+                        ref_latents = ref_xt.chunk(2)[0]
+                    else:
+                        ref_xt = ref_latents
+
+                        ref_xt = (
+                            torch.cat(
+                                [ref_xt] * 2) if do_classifier_free_guidance else ref_xt
+                        )
 
                     MODE = "write"
                     self.change_module_mode(
@@ -1583,15 +1592,27 @@ class StableDiffusionControlNetInpaintPipeline(
                     )
 
                     self.change_module_mode(MODE, attn_modules, gn_modules)
-                    self.unet(
+                    ref_noise_pred=self.unet(
                         ref_xt,
                         t,
                         encoder_hidden_states=ref_prompt_embeds,
                         cross_attention_kwargs=cross_attention_kwargs,
                         down_block_additional_residuals=ref_down_block_res_samples,
                         mid_block_additional_residual=ref_mid_block_res_sample,
-                        return_dict=False,
-                    )
+                        # return_dict=False,
+                    ).sample
+                    # perform guidance
+                    if do_classifier_free_guidance:
+                        print("with cfg")
+                        ref_noise_pred_uncond, ref_noise_pred_text = ref_noise_pred.chunk(2)
+                        ref_noise_pred = ref_noise_pred_uncond + guidance_scale * (
+                            ref_noise_pred_text - ref_noise_pred_uncond
+                        )
+
+                    # compute the previous noisy sample x_t -> x_t-1
+                    ref_latents = self.scheduler.step(
+                        ref_noise_pred, t, ref_latents, **extra_step_kwargs
+                    ).prev_sample
 
                     # predict the noise residual
                     MODE = "read"  # change to read mode for following noise_pred
