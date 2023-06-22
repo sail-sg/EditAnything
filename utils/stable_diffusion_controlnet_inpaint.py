@@ -7,6 +7,8 @@ import numpy as np
 import PIL.Image
 import torch
 import torch.nn.functional as F
+import cv2
+import numpy as np
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
 from diffusers import (
@@ -137,6 +139,38 @@ EXAMPLE_DOC_STRING = """
         >>> image.save("out.png")
         ```
 """
+def compute_bounding_box(mask):
+    # 找到mask中值为1的像素的坐标
+    y, x = torch.where(mask[0, 0, :, :] == 1)
+    
+    # 计算外接box的坐标 [xmin, ymin, xmax, ymax]
+    return [x.min().item(), y.min().item(), x.max().item(), y.max().item()]
+
+def fill_region(image_source, image_dest, mask_source, mask_dest):
+    # 计算mask_source和mask_dest的外接box
+    box_source = compute_bounding_box(mask_source)
+    box_dest = compute_bounding_box(mask_dest)
+    
+    # 计算目标box的宽度和高度
+    target_width = box_dest[2] - box_dest[0] + 1
+    target_height = box_dest[3] - box_dest[1] + 1
+    
+    # 提取源box
+    source_box = image_source[:, :, box_source[1]:box_source[3]+1, box_source[0]:box_source[2]+1]
+    
+    # 调整源box的大小以适应目标box
+    source_box_resized = torch.nn.functional.interpolate(source_box, size=(target_height, target_width), mode='bilinear')
+    
+    # 提取并调整mask_dest的大小
+    mask_dest_box = mask_dest[:, :, box_dest[1]:box_dest[3]+1, box_dest[0]:box_dest[2]+1]
+    mask_dest_resized = torch.nn.functional.interpolate(mask_dest_box, size=(target_height, target_width), mode='nearest')
+    
+    # 将调整大小的源box粘贴到目标图像上
+    image_dest[:, :, box_dest[1]:box_dest[3]+1, box_dest[0]:box_dest[2]+1] = mask_dest_resized * source_box_resized + image_dest[:, :, box_dest[1]:box_dest[3]+1, box_dest[0]:box_dest[2]+1] * (1 - mask_dest_resized)
+    
+    return image_dest
+
+
 
 
 def prepare_image(image):
@@ -1549,20 +1583,26 @@ class StableDiffusionControlNetInpaintPipeline(
 
                 if ref_image is not None:  # for ref_only mode
                     # ref only part
-                    noise = randn_tensor(
-                        ref_image_latents.shape,
-                        generator=generator,
-                        device=ref_image_latents.device,
-                        dtype=ref_image_latents.dtype,
-                    )
+                    # noise = randn_tensor(
+                    #     ref_image_latents.shape,
+                    #     generator=generator,
+                    #     device=ref_image_latents.device,
+                    #     dtype=ref_image_latents.dtype,
+                    # )
                     ref_xt = self.scheduler.add_noise(
                         ref_image_latents,
-                        noise,
+                        torch.cat((noise, noise), dim=0),
                         t.reshape(
                             1,
                         ),
                     )
                     ref_xt = self.scheduler.scale_model_input(ref_xt, t)
+                    # if i < len(timesteps) * 0.1:
+                    #     # inpainting_latent_model_input = fill_region(
+                    #     #     image_source = ref_xt, image_dest = inpainting_latent_model_input, mask_source =ref_mask, mask_dest = 1-mask_image)
+                    #     inpainting_latent_model_input = fill_region(
+                    #         image_source = ref_image_latents, image_dest = inpainting_latent_model_input, mask_source =ref_mask, mask_dest = 1-mask_image)
+
 
                     MODE = "write"
                     self.change_module_mode(
@@ -1592,6 +1632,8 @@ class StableDiffusionControlNetInpaintPipeline(
                         mid_block_additional_residual=ref_mid_block_res_sample,
                         return_dict=False,
                     )
+
+
 
                     # predict the noise residual
                     MODE = "read"  # change to read mode for following noise_pred
@@ -1646,7 +1688,15 @@ class StableDiffusionControlNetInpaintPipeline(
                         latents = (init_latents_proper * mask_image) + (
                             latents * (1 - mask_image)
                         )
+                # if i < len(timesteps) * 0.2:             
+                #     init_latents_proper = self.scheduler.add_noise(
+                #         ref_image_latents.chunk(2)[0], noise, timesteps[i + 1]
+                #     )          
+                #     latents = fill_region(
+                #         image_source = init_latents_proper, image_dest = latents, mask_source = ref_mask, mask_dest = 1-mask_image)
 
+
+                
             if self.unet.config.in_channels == 4 and (
                 alignment_ratio == 1.0 or alignment_ratio is None
             ):
@@ -1654,6 +1704,11 @@ class StableDiffusionControlNetInpaintPipeline(
                 latents = (init_masked_image_latents * mask_image) + (
                     latents * (1 - mask_image)
                 )
+
+
+        # latents = fill_region(
+        #     image_source = ref_image_latents.chunk(2)[0], image_dest = latents,mask_source =ref_mask, mask_dest = 1-mask_image)
+
 
         # If we do sequential model offloading, let's offload unet and controlnet
         # manually for max memory savings
