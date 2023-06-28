@@ -1512,6 +1512,7 @@ class StableDiffusionControlNetInpaintPipeline(
             self.do_classifier_free_guidance = do_classifier_free_guidance
             self.style_fidelity = style_fidelity
             self.ref_mask = ref_mask
+            self.inpaint_mask = mask_image
             attn_modules, gn_modules = self.redefine_ref_model(
                 self.unet, reference_attn, reference_adain, model_type="unet"
             )

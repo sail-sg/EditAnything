@@ -685,6 +685,8 @@ class EditAnythingLoraModel:
                 a_prompt += generated_prompt
             print("Generated ref text:", ref_prompt)
             print("Generated input text:", a_prompt)
+            # ref_image = cropped_ref_image
+            # ref_mask = cropped_ref_mask
 
         else:
             ref_mask = None
