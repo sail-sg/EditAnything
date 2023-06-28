@@ -74,6 +74,8 @@ config_dict = OrderedDict(
     [
         ("LAION Pretrained(v0-4)-SD15", "shgao/edit-anything-v0-4-sd15"),
         ("LAION Pretrained(v0-4)-SD21", "shgao/edit-anything-v0-4-sd21"),
+        ("LAION Pretrained(v0-3)-SD21", "shgao/edit-anything-v0-3"),
+        ("SAM Pretrained(v0-1)-SD21", "shgao/edit-anything-v0-1-1"),
     ]
 )
 
