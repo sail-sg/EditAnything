@@ -468,7 +468,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank0) > 0
                         and len(self.var_bank0) > 0
                     ):
-                        print("hacked_CrossAttnDownBlock2D_forward0")
+                        # print("hacked_CrossAttnDownBlock2D_forward0")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(
@@ -548,7 +548,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        print("hack_CrossAttnDownBlock2D_forward")
+                        # print("hack_CrossAttnDownBlock2D_forward")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(
@@ -645,7 +645,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        print("hacked_DownBlock2D_forward")
+                        # print("hacked_DownBlock2D_forward")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(
@@ -753,7 +753,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank0) > 0
                         and len(self.var_bank0) > 0
                     ):
-                        print("hacked_CrossAttnUpBlock2D_forward1")
+                        # print("hacked_CrossAttnUpBlock2D_forward1")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(
@@ -835,7 +835,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        print("hacked_CrossAttnUpBlock2D_forward")
+                        # print("hacked_CrossAttnUpBlock2D_forward")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(
@@ -932,7 +932,7 @@ class StableDiffusionReferencePipeline:
                         and len(self.mean_bank) > 0
                         and len(self.var_bank) > 0
                     ):
-                        print("hacked_UpBlock2D_forward")
+                        # print("hacked_UpBlock2D_forward")
                         scale_ratio = self.inpaint_mask.shape[2] / \
                             hidden_states.shape[2]
                         this_inpaint_mask = F.interpolate(

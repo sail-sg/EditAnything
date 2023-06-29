@@ -80,7 +80,7 @@ def create_demo_template(
                     a_prompt = gr.Textbox(
                         label="Positive Prompt",
                         info="Text in the expected things of edited region",
-                        value="best quality, extremely detailed",
+                        value="best quality, extremely detailed,",
                     )
                     n_prompt = gr.Textbox(
                         label="Negative Prompt",
@@ -177,7 +177,7 @@ def create_demo_template(
                         label="SAM Control Scale",
                         minimum=0,
                         maximum=1.0,
-                        value=1.0,
+                        value=0.3,
                         step=0.1,
                     )
                     ref_inpaint_scale = gr.Slider(
@@ -187,6 +187,15 @@ def create_demo_template(
                         value=0.2,
                         step=0.1,
                     )
+                    with gr.Row():
+                        ref_textinv = gr.Checkbox(
+                            label="Use textual inversion token", value=False
+                        )
+                        ref_textinv_path = gr.Textbox(
+                            label="textual inversion token path",
+                            info="Text in the inversion token path",
+                            value=None,
+                        )
 
                 with gr.Accordion("Advanced options", open=False):
                     mask_image = gr.Image(
@@ -277,6 +286,8 @@ def create_demo_template(
             ref_sam_scale,
             ref_inpaint_scale,
             ref_auto_prompt,
+            ref_textinv,
+            ref_textinv_path,
         ]
         run_button.click(
             fn=process,
@@ -321,6 +332,8 @@ def create_demo_template(
             ref_sam_scale,
             ref_inpaint_scale,
             ref_auto_prompt,
+            ref_textinv,
+            ref_textinv_path,
         ]
 
         run_button_click.click(

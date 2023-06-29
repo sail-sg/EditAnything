@@ -600,6 +600,8 @@ class EditAnythingLoraModel:
         ref_sam_scale=None,
         ref_inpaint_scale=None,
         ref_auto_prompt=False,
+        ref_textinv=True,
+        ref_textinv_path=None,
     ):
 
         if condition_model is None or condition_model == "EditAnything":
@@ -652,7 +654,7 @@ class EditAnythingLoraModel:
             )
             self.default_controlnet_path = this_controlnet_path
             torch.cuda.empty_cache()
-        if self.last_ref_infer and ref_image is None:
+        if self.last_ref_infer:
             print("Redefine the model to overwrite the ref mode")
             self.pipe = obtain_generation_model(
                 self.base_model_path,
@@ -661,11 +663,12 @@ class EditAnythingLoraModel:
                 enable_all_generate,
                 self.extra_inpaint,
             )
+            self.last_ref_infer = False
 
         if ref_image is not None:
             ref_mask = ref_image["mask"]
             ref_image = ref_image["image"]
-            if ref_auto_prompt:
+            if ref_auto_prompt or ref_textinv:
                 bbox = get_bounding_box(
                     np.array(ref_mask) / 255
                 )  # reverse the mask to make 1 the choosen region
@@ -680,13 +683,27 @@ class EditAnythingLoraModel:
                 cropped_ref_image = Image.fromarray(
                     cropped_ref_image.astype("uint8"))
 
+            if ref_auto_prompt:
                 generated_prompt = self.get_blip2_text(cropped_ref_image)
                 ref_prompt += generated_prompt
                 a_prompt += generated_prompt
             print("Generated ref text:", ref_prompt)
             print("Generated input text:", a_prompt)
+            self.last_ref_infer = True
             # ref_image = cropped_ref_image
             # ref_mask = cropped_ref_mask
+            if ref_textinv:
+                try:
+                    self.pipe.load_textual_inversion(ref_textinv_path)
+                    print("Load textinv embedding from:", ref_textinv_path)
+                except:
+                    print("No textinvert embeddings found.")
+                    ref_data_path = "./utils/tmp/textinv/img"
+                    if not os.path.exists(ref_data_path):   
+                        os.makedirs(ref_data_path)
+                    cropped_ref_image.save(os.path.join(ref_data_path, 'ref.png'))
+                    print("Ref image region is save to:", ref_data_path)
+                    print("Plese finetune with run_texutal_inversion.sh in utils folder to get the textinvert embeddings.")
 
         else:
             ref_mask = None
