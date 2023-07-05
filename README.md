@@ -204,7 +204,6 @@ BLIP2 Prompt: "a black drone flying in the blue sky"
 ![p](images/sample_semantic.jpg)
 ```
 python sam2semantic.py
-
 ```
 
 Highlight features:
@@ -217,8 +216,8 @@ Highlight features:
 **Create a environment**
 
 ```bash
-    conda env create -f environment.yaml
-    conda activate control
+conda env create -f environment.yaml
+conda activate control
 ```
 
 **Install BLIP2 and SAM**
@@ -226,14 +225,11 @@ Highlight features:
 Put these models in `models` folder.
 ```bash
 pip install git+https://github.com/huggingface/transformers.git
-
 pip install git+https://github.com/facebookresearch/segment-anything.git
 
 # For text-guided editing
 pip install git+https://github.com/openai/CLIP.git
-
 pip install git+https://github.com/facebookresearch/detectron2.git
-
 pip install git+https://github.com/IDEA-Research/GroundingDINO.git
 ```
 
@@ -254,7 +250,6 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 
 # Get pretrained model from huggingface. 
 # No need to download this! But please install safetensors for reading the ckpt.
-
 ```
 
 
