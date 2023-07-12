@@ -259,6 +259,7 @@ class StableDiffusionReferencePipeline:
                         masked_norm_hidden_states = masked_norm_hidden_states.permute(
                             0, 2, 1
                         )
+                        # print("write", masked_norm_hidden_states.shape)
                         self.bank.append(masked_norm_hidden_states)
                         # self.bank.append(norm_hidden_states.detach().clone())
                     attn_output = self.attn1(
@@ -290,6 +291,7 @@ class StableDiffusionReferencePipeline:
                         ref_hidden_states = torch.cat(
                             [norm_hidden_states] + self.bank, dim=1
                         )
+                        # print(norm_hidden_states.shape, self.bank[0].shape)
                         attn_output_uc = self.attn1(
                             norm_hidden_states,
                             encoder_hidden_states=ref_hidden_states,

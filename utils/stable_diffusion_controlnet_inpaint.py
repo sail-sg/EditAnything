@@ -1520,7 +1520,17 @@ class StableDiffusionControlNetInpaintPipeline(
             control_attn_modules, control_gn_modules = self.redefine_ref_model(
                 self.controlnet, reference_attn, False, model_type="controlnet"
             )
-
+        if ref_image is not None: 
+            print("ref noise", ref_image_latents.shape)
+            noise = randn_tensor(
+                # ref_image_latents.shape,
+                latents.shape,
+                generator=generator,
+                device=ref_image_latents.device,
+                dtype=ref_image_latents.dtype,
+            )
+            # if do_classifier_free_guidance:
+            noise = torch.cat((noise, noise), dim=0)
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - \
             num_inference_steps * self.scheduler.order
@@ -1549,12 +1559,12 @@ class StableDiffusionControlNetInpaintPipeline(
 
                 if ref_image is not None:  # for ref_only mode
                     # ref only part
-                    noise = randn_tensor(
-                        ref_image_latents.shape,
-                        generator=generator,
-                        device=ref_image_latents.device,
-                        dtype=ref_image_latents.dtype,
-                    )
+                    # noise = randn_tensor(
+                    #     ref_image_latents.shape,
+                    #     generator=generator,
+                    #     device=ref_image_latents.device,
+                    #     dtype=ref_image_latents.dtype,
+                    # )
                     ref_xt = self.scheduler.add_noise(
                         ref_image_latents,
                         noise,
