@@ -1347,7 +1347,8 @@ class StableDiffusionControlNetInpaintPipeline(
                 ref_prompt,
                 device,
                 num_images_per_prompt * 2,
-                do_classifier_free_guidance,
+                False,
+                # do_classifier_free_guidance,
                 negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
                 prompt_embeds=None,
             )
@@ -1414,10 +1415,16 @@ class StableDiffusionControlNetInpaintPipeline(
                 num_images_per_prompt=num_images_per_prompt,
                 device=device,
                 dtype=self.controlnet.dtype,
-                do_classifier_free_guidance=do_classifier_free_guidance,
+                do_classifier_free_guidance=False,
+                # do_classifier_free_guidance=do_classifier_free_guidance,
             )
             ref_controlnet_conditioning_image = controlnet_conditioning_image.copy()
+            for i in range(len(ref_controlnet_conditioning_image)):
+                ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(2)[0] # remove the extra guidance for cfg
+                print("ref_controlnet_conditioning_image[i]", ref_controlnet_conditioning_image[i].shape)
             ref_controlnet_conditioning_image[-1] = ref_control_image
+
+            print("ref_control_image", ref_control_image.shape)
             # ref_controlnet_conditioning_scale = controlnet_conditioning_scale.copy()
             # ref_controlnet_conditioning_scale[0] = 1.0 # disable the first sam controlnet
             # ref_controlnet_conditioning_scale[-1] = 0.2
@@ -1491,7 +1498,8 @@ class StableDiffusionControlNetInpaintPipeline(
                 prompt_embeds.dtype,
                 device,
                 generator,
-                do_classifier_free_guidance,
+                False,
+                # do_classifier_free_guidance,
             )
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -1530,7 +1538,7 @@ class StableDiffusionControlNetInpaintPipeline(
                 dtype=ref_image_latents.dtype,
             )
             # if do_classifier_free_guidance:
-            noise = torch.cat((noise, noise), dim=0)
+            # noise = torch.cat((noise, noise), dim=0)
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - \
             num_inference_steps * self.scheduler.order
@@ -1578,7 +1586,8 @@ class StableDiffusionControlNetInpaintPipeline(
                     self.change_module_mode(
                         MODE, control_attn_modules, control_gn_modules
                     )
-
+                    print("ref_xt", ref_xt.shape)
+                    print("ref_prompt_embeds", ref_prompt_embeds.shape)
                     (
                         ref_down_block_res_samples,
                         ref_mid_block_res_sample,
