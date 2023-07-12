@@ -260,7 +260,7 @@ class StableDiffusionReferencePipeline:
                             0, 2, 1
                         )
                         # print("write", masked_norm_hidden_states.shape)
-                        self.bank.append(torch.cat([masked_norm_hidden_states]*2, dim=0))
+                        self.bank.append(torch.cat([masked_norm_hidden_states], dim=0))
                         # self.bank.append(norm_hidden_states.detach().clone())
                     attn_output = self.attn1(
                         norm_hidden_states,
@@ -288,16 +288,32 @@ class StableDiffusionReferencePipeline:
                         # print(attention_mask.shape, this_ref_mask.shape)
                         # attention_mask = torch.cat((attention_mask, this_ref_mask), dim=-1)
                         # print("merge", attention_mask.shape)
+                        
+                        if self.do_classifier_free_guidance:
+                            c_norm_hidden_states, uc_norm_hidden_states = norm_hidden_states.chunk(2)
                         ref_hidden_states = torch.cat(
-                            [norm_hidden_states] + self.bank, dim=1
+                            [uc_norm_hidden_states] + self.bank, dim=1
                         )
                         # print(norm_hidden_states.shape, self.bank[0].shape)
-                        attn_output_uc = self.attn1(
-                            norm_hidden_states,
+                        # attn_output_uc = self.attn1(
+                        #     norm_hidden_states,
+                        #     encoder_hidden_states=ref_hidden_states,
+                        #     # attention_mask=attention_mask,
+                        #     **cross_attention_kwargs,
+                        # )
+                        c_attn_output_uc = self.attn1(
+                            c_norm_hidden_states,
+                            encoder_hidden_states=c_norm_hidden_states,
+                            # attention_mask=attention_mask,
+                            **cross_attention_kwargs,
+                        )
+                        uc_attn_output_uc = self.attn1(
+                            uc_norm_hidden_states,
                             encoder_hidden_states=ref_hidden_states,
                             # attention_mask=attention_mask,
                             **cross_attention_kwargs,
                         )
+                        attn_output_uc = torch.cat((c_attn_output_uc, uc_attn_output_uc), dim=0)
                         attn_output_c = attn_output_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             attn_output_c[self.uc_mask] = self.attn1(
