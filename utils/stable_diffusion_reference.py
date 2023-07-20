@@ -1,5 +1,6 @@
 # Based on https://raw.githubusercontent.com/okotaku/diffusers/feature/reference_only_control/examples/community/stable_diffusion_reference.py
 # Inspired by: https://github.com/Mikubill/sd-webui-controlnet/discussions/1236
+import torch.fft as fft
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import numpy as np
@@ -54,6 +55,52 @@ def torch_dfs(model: torch.nn.Module):
     for child in model.children():
         result += torch_dfs(child)
     return result
+
+
+def add_high_freq_feature(feature1, feature2, num_freq_components):
+    """
+    将一个特征的高频成分添加到另一个特征上。
+
+    参数:
+        - feature1: 第一个特征 (torch.Tensor)
+        - feature2: 第二个特征 (torch.Tensor)
+        - num_freq_components: 保留的频率分量数量 (int)
+
+    返回值:
+        - mixed_feature: 混合后的特征 (torch.Tensor)
+    """
+    # 对两个特征进行二维傅里叶变换
+    dtype = feature2.dtype
+    print("feature1", feature1.shape)
+    print("feature2", feature2.shape)
+    # 转换特征的数据类型为指定类型
+    feature1 = feature1.to(torch.float32)
+    feature2 = feature2.to(torch.float32)
+
+    # 对两个特征进行二维傅里叶变换
+    spectrum1 = fft.fftn(feature1, dim=(-2, -1))
+    spectrum2 = fft.fftn(feature2, dim=(-2, -1))
+    print("spectrum1", spectrum1.shape)
+    print("spectrum2", spectrum2.shape)
+
+    # 提取feature1的高频成分的幅值
+    high_freq_magnitude1 = torch.abs(spectrum1[..., :num_freq_components, :])
+
+    # 提取feature2的幅值和相位信息
+    magnitude2 = torch.abs(spectrum2)
+    phase2 = torch.angle(spectrum2)
+
+    # 将feature1的高频幅值成分添加到feature2的幅值上
+    mixed_magnitude = magnitude2.clone()
+    mixed_magnitude[..., :num_freq_components, :] += high_freq_magnitude1
+
+    # 合并幅值和相位信息
+    mixed_spectrum = torch.polar(mixed_magnitude, phase2)
+
+    # 对混合后的频域进行逆傅里叶变换得到混合后的特征
+    mixed_feature = fft.ifftn(mixed_spectrum, dim=(-2, -1))
+
+    return mixed_feature.to(dtype)
 
 
 class StableDiffusionReferencePipeline:
@@ -240,6 +287,8 @@ class StableDiffusionReferencePipeline:
                         # print("this_ref_mask",this_ref_mask.shape)
 
                         # this_ref_mask = this_ref_mask.view(1,-1,1)
+                        # masked_tmp_fea = resize_norm_hidden_states*this_ref_mask
+                        # self.fea_bank.append(torch.cat([masked_tmp_fea]*2, dim=0))
                         this_ref_mask = this_ref_mask.repeat(
                             resize_norm_hidden_states.shape[0],
                             resize_norm_hidden_states.shape[1],
@@ -256,11 +305,13 @@ class StableDiffusionReferencePipeline:
                                 -1,
                             )
                         )
+
                         masked_norm_hidden_states = masked_norm_hidden_states.permute(
                             0, 2, 1
                         )
                         # print("write", masked_norm_hidden_states.shape)
-                        self.bank.append(torch.cat([masked_norm_hidden_states]*2, dim=0))
+                        self.bank.append(
+                            torch.cat([masked_norm_hidden_states]*2, dim=0))
                         # self.bank.append(norm_hidden_states.detach().clone())
                     attn_output = self.attn1(
                         norm_hidden_states,
@@ -288,9 +339,15 @@ class StableDiffusionReferencePipeline:
                         # print(attention_mask.shape, this_ref_mask.shape)
                         # attention_mask = torch.cat((attention_mask, this_ref_mask), dim=-1)
                         # print("merge", attention_mask.shape)
-                        
+
                         # if self.do_classifier_free_guidance:
                         #     c_norm_hidden_states, uc_norm_hidden_states = norm_hidden_states.chunk(2)
+
+                        # print("before", norm_hidden_states.shape)
+                        # tmp_fea = norm_hidden_states.permute(0,2,1).view(self.fea_bank[0].shape)
+                        # norm_hidden_states = add_high_freq_feature(self.fea_bank[0], tmp_fea, 10).view(self.fea_bank[0].shape[0], self.fea_bank[0].shape[1], -1).permute(0,2,1)
+                        # print("after", norm_hidden_states.shape)
+
                         ref_hidden_states = torch.cat(
                             [norm_hidden_states] + self.bank, dim=1
                         )
@@ -300,36 +357,30 @@ class StableDiffusionReferencePipeline:
                             # attention_mask=attention_mask,
                             **cross_attention_kwargs,
                         )
-                        # c_attn_output_uc = self.attn1(
-                        #     c_norm_hidden_states,
-                        #     encoder_hidden_states=ref_hidden_states,
-                        #     # attention_mask=attention_mask,
-                        #     **cross_attention_kwargs,
-                        # )
-                        # uc_attn_output_uc = self.attn1(
-                        #     uc_norm_hidden_states,
-                        #     encoder_hidden_states=uc_norm_hidden_states,
-                        #     # attention_mask=attention_mask,
-                        #     **cross_attention_kwargs,
-                        # )
-                        # attn_output_uc = torch.cat((c_attn_output_uc, uc_attn_output_uc), dim=0)
                         attn_output_c = attn_output_uc.clone()
+
+                        attn_output_ori = self.attn1(
+                            norm_hidden_states,
+                            encoder_hidden_states=norm_hidden_states,
+                            **cross_attention_kwargs,
+                        )
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             # attn_output_c[self.uc_mask] = self.attn1(
                             #     norm_hidden_states[self.uc_mask],
                             #     encoder_hidden_states=norm_hidden_states[self.uc_mask],
                             #     **cross_attention_kwargs,
                             # )
-                            attn_output_c = self.attn1(
-                                norm_hidden_states,
-                                encoder_hidden_states=norm_hidden_states,
-                                **cross_attention_kwargs,
-                            )
+                            attn_output_c[self.uc_mask] = attn_output_ori[self.uc_mask]
+
                         attn_output = (
                             self.style_fidelity * attn_output_c
                             + (1.0 - self.style_fidelity) * attn_output_uc
                         )
+
+                        attn_output = attn_output + self.ref_scale * \
+                            (attn_output-attn_output_ori)
                         self.bank.clear()
+                        self.fea_bank.clear()
                     else:
                         attn_output = self.attn1(
                             norm_hidden_states,
@@ -400,8 +451,8 @@ class StableDiffusionReferencePipeline:
                         masked_x, dim=(2, 3), keepdim=True, correction=0
                     )
 
-                    self.mean_bank.append(mean)
-                    self.var_bank.append(var)
+                    self.mean_bank.append(torch.cat([mean]*2, dim=0))
+                    self.var_bank.append(torch.cat([var]*2, dim=0))
             if self.MODE == "read":
                 if (
                     self.gn_auto_machine_weight >= self.gn_weight
@@ -434,12 +485,15 @@ class StableDiffusionReferencePipeline:
                             var_acc) + eps) ** 0.5
                     )
                     x_uc = (((masked_x - mean) / std) * std_acc) + mean_acc
+
                     x_c = x_uc.clone()
                     if self.do_classifier_free_guidance and self.style_fidelity > 0:
                         x_c[self.uc_mask] = masked_x[self.uc_mask]
-                    masked_x = self.style_fidelity * x_c + \
+                    x_c = self.style_fidelity * x_c + \
                         (1.0 - self.style_fidelity) * x_uc
-                    x[this_inpaint_mask] = masked_x.view(-1)
+
+                    x_c = x_c + self.ref_scale * (x_c-masked_x)
+                    x[this_inpaint_mask] = x_c.view(-1)
                 self.mean_bank = []
                 self.var_bank = []
             return x
@@ -482,8 +536,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank0.append(mean)
-                        self.var_bank0.append(var)
+                        self.mean_bank0.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank0.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -526,11 +580,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
                 hidden_states = attn(
@@ -562,8 +619,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank.append(mean)
-                        self.var_bank.append(var)
+                        self.mean_bank.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -606,11 +663,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
                 output_states = output_states + (hidden_states,)
@@ -659,8 +719,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank.append(mean)
-                        self.var_bank.append(var)
+                        self.mean_bank.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -703,11 +763,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
                 output_states = output_states + (hidden_states,)
@@ -767,8 +830,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank0.append(mean)
-                        self.var_bank0.append(var)
+                        self.mean_bank0.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank0.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -811,11 +874,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
                 hidden_states = attn(
@@ -849,8 +915,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank.append(mean)
-                        self.var_bank.append(var)
+                        self.mean_bank.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -893,11 +959,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
             if self.MODE == "read":
@@ -946,8 +1015,8 @@ class StableDiffusionReferencePipeline:
                         var, mean = torch.var_mean(
                             masked_hidden_states, dim=(2, 3), keepdim=True, correction=0
                         )
-                        self.mean_bank.append(mean)
-                        self.var_bank.append(var)
+                        self.mean_bank.append(torch.cat([mean]*2, dim=0))
+                        self.var_bank.append(torch.cat([var]*2, dim=0))
                 if self.MODE == "read":
                     if (
                         self.gn_auto_machine_weight >= self.gn_weight
@@ -990,11 +1059,14 @@ class StableDiffusionReferencePipeline:
                         hidden_states_c = hidden_states_uc.clone()
                         if self.do_classifier_free_guidance and self.style_fidelity > 0:
                             hidden_states_c[self.uc_mask] = masked_hidden_states[self.uc_mask]
-                        masked_hidden_states = (
+                        hidden_states_c = (
                             self.style_fidelity * hidden_states_c
                             + (1.0 - self.style_fidelity) * hidden_states_uc
                         )
-                        hidden_states[this_inpaint_mask] = masked_hidden_states.view(
+
+                        hidden_states_c = hidden_states_c + self.ref_scale * \
+                            (hidden_states_c-masked_hidden_states)
+                        hidden_states[this_inpaint_mask] = hidden_states_c.view(
                             -1)
 
             if self.MODE == "read":
@@ -1025,6 +1097,7 @@ class StableDiffusionReferencePipeline:
                         module, BasicTransformerBlock
                     )
                     module.bank = []
+                    module.fea_bank = []
                     module.attn_weight = float(i) / float(len(attn_modules))
                     module.attention_auto_machine_weight = (
                         self.attention_auto_machine_weight
@@ -1039,6 +1112,7 @@ class StableDiffusionReferencePipeline:
                     module.uc_mask = self.uc_mask
                     module.style_fidelity = self.style_fidelity
                     module.ref_mask = self.ref_mask
+                    module.ref_scale = self.ref_scale
             else:
                 attn_modules = None
             if reference_adain:
@@ -1101,6 +1175,7 @@ class StableDiffusionReferencePipeline:
                     module.style_fidelity = self.style_fidelity
                     module.ref_mask = self.ref_mask
                     module.inpaint_mask = self.inpaint_mask
+                    module.ref_scale = self.ref_scale
             else:
                 gn_modules = None
         elif model_type == "controlnet":
@@ -1120,6 +1195,7 @@ class StableDiffusionReferencePipeline:
                         module, BasicTransformerBlock
                     )
                     module.bank = []
+                    module.fea_bank = []
                     # float(i) / float(len(attn_modules))
                     module.attn_weight = 0.0
                     module.attention_auto_machine_weight = (
@@ -1135,6 +1211,7 @@ class StableDiffusionReferencePipeline:
                     module.uc_mask = self.uc_mask
                     module.style_fidelity = self.style_fidelity
                     module.ref_mask = self.ref_mask
+                    module.ref_scale = self.ref_scale
             else:
                 attn_modules = None
             gn_modules = None

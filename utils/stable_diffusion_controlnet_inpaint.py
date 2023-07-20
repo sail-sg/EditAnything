@@ -1179,6 +1179,7 @@ class StableDiffusionControlNetInpaintPipeline(
         style_fidelity: float = 0.5,
         reference_attn: bool = True,
         reference_adain: bool = True,
+        ref_scale: float = 1.0,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1272,6 +1273,8 @@ class StableDiffusionControlNetInpaintPipeline(
                 Whether to use reference query for self attention's context.
             reference_adain (`bool`):
                 Whether to use reference adain.
+            ref_scale (`float`):
+                reference guidance scale.
 
         Examples:
 
@@ -1519,6 +1522,7 @@ class StableDiffusionControlNetInpaintPipeline(
             self.gn_auto_machine_weight = gn_auto_machine_weight
             self.do_classifier_free_guidance = do_classifier_free_guidance
             self.style_fidelity = style_fidelity
+            self.ref_scale = ref_scale
             self.ref_mask = ref_mask
             self.inpaint_mask = mask_image
             attn_modules, gn_modules = self.redefine_ref_model(
@@ -1586,8 +1590,8 @@ class StableDiffusionControlNetInpaintPipeline(
                     self.change_module_mode(
                         MODE, control_attn_modules, control_gn_modules
                     )
-                    print("ref_xt", ref_xt.shape)
-                    print("ref_prompt_embeds", ref_prompt_embeds.shape)
+                    # print("ref_xt", ref_xt.shape)
+                    # print("ref_prompt_embeds", ref_prompt_embeds.shape)
                     (
                         ref_down_block_res_samples,
                         ref_mid_block_res_sample,

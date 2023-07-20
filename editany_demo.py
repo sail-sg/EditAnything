@@ -169,9 +169,9 @@ def create_demo_template(
                     style_fidelity = gr.Slider(
                         label="Style fidelity",
                         minimum=0,
-                        maximum=1.0,
+                        maximum=100.0,
                         value=0.5,
-                        step=0.01,
+                        step=0.1,
                     )
                     ref_sam_scale = gr.Slider(
                         label="SAM Control Scale",
@@ -184,6 +184,13 @@ def create_demo_template(
                         label="Inpaint Control Scale",
                         minimum=0,
                         maximum=1.0,
+                        value=0.2,
+                        step=0.1,
+                    )
+                    ref_scale = gr.Slider(
+                        label="Reference Guidance Scale",
+                        minimum=0,
+                        maximum=2.0,
                         value=0.2,
                         step=0.1,
                     )
@@ -288,6 +295,7 @@ def create_demo_template(
             ref_auto_prompt,
             ref_textinv,
             ref_textinv_path,
+            ref_scale,
         ]
         run_button.click(
             fn=process,
@@ -334,6 +342,7 @@ def create_demo_template(
             ref_auto_prompt,
             ref_textinv,
             ref_textinv_path,
+            ref_scale,
         ]
 
         run_button_click.click(

@@ -14,7 +14,7 @@ import random
 import os
 import requests
 from io import BytesIO
-from annotator.util import resize_image, HWC3, resize_points, get_bounding_box
+from annotator.util import resize_image, HWC3, resize_points, get_bounding_box, save_input_to_file
 
 import torch
 from safetensors.torch import load_file
@@ -567,6 +567,7 @@ class EditAnythingLoraModel:
         )
 
     @torch.inference_mode()
+    @save_input_to_file
     def process(
         self,
         source_image,
@@ -602,6 +603,7 @@ class EditAnythingLoraModel:
         ref_auto_prompt=False,
         ref_textinv=True,
         ref_textinv_path=None,
+        ref_scale=None,
     ):
 
         if condition_model is None or condition_model == "EditAnything":
@@ -845,6 +847,7 @@ class EditAnythingLoraModel:
                         reference_adain=reference_adain,
                         ref_controlnet_conditioning_scale=ref_multi_condition_scale,
                         guess_mode=guess_mode,
+                        ref_scale=ref_scale,
                     ).images
             results = [x_samples[i] for i in range(num_samples)]
 
