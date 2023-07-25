@@ -566,7 +566,7 @@ class EditAnythingLoraModel:
             Image.fromarray(mask_image),
         )
 
-    @torch.inference_mode()
+    # @torch.inference_mode()
     @save_input_to_file
     def process(
         self,
@@ -710,7 +710,8 @@ class EditAnythingLoraModel:
         else:
             ref_mask = None
 
-        with torch.no_grad():
+        # with torch.no_grad():
+        if True:
             if self.use_blip and enable_auto_prompt:
                 print("Generating text:")
                 blip2_prompt = self.get_blip2_text(input_image)

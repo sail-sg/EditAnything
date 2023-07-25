@@ -34,7 +34,7 @@ from diffusers.utils import (
     replace_example_docstring,
 )
 from diffusers.loaders import LoraLoaderMixin, TextualInversionLoaderMixin
-from utils.stable_diffusion_reference import StableDiffusionReferencePipeline
+from utils.stable_diffusion_reference import StableDiffusionReferencePipeline, align_feature
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -1126,7 +1126,7 @@ class StableDiffusionControlNetInpaintPipeline(
 
         return height, width
 
-    @torch.no_grad()
+    # @torch.no_grad()
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
         self,
@@ -1286,99 +1286,86 @@ class StableDiffusionControlNetInpaintPipeline(
             (nsfw) content, according to the `safety_checker`.
         """
         # 0. Default height and width to unet
-        height, width = self._default_height_width(
-            height, width, controlnet_conditioning_image
-        )
-
-        # 1. Check inputs. Raise error if not correct
-        self.check_inputs(
-            prompt,
-            image,
-            mask_image,
-            controlnet_conditioning_image,
-            height,
-            width,
-            callback_steps,
-            negative_prompt,
-            prompt_embeds,
-            negative_prompt_embeds,
-            controlnet_conditioning_scale,
-        )
-        if ref_image is not None:  # for ref_only mode
-            self.check_ref_input(reference_attn, reference_adain)
-        if ref_mask is not None:
-            ref_mask = prepare_mask_image(ref_mask)
-            ref_mask = F.interpolate(
-                ref_mask,
-                size=(height // self.vae_scale_factor,
-                      width // self.vae_scale_factor),
+        with torch.no_grad():
+            height, width = self._default_height_width(
+                height, width, controlnet_conditioning_image
             )
 
-        # 2. Define call parameters
-        if prompt is not None and isinstance(prompt, str):
-            batch_size = 1
-        elif prompt is not None and isinstance(prompt, list):
-            batch_size = len(prompt)
-        else:
-            batch_size = prompt_embeds.shape[0]
-
-        device = self._execution_device
-        # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
-        # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
-        # corresponds to doing no classifier free guidance.
-        do_classifier_free_guidance = guidance_scale > 1.0
-
-        if isinstance(self.controlnet, MultiControlNetModel) and isinstance(
-            controlnet_conditioning_scale, float
-        ):
-            controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(
-                self.controlnet.nets
+            # 1. Check inputs. Raise error if not correct
+            self.check_inputs(
+                prompt,
+                image,
+                mask_image,
+                controlnet_conditioning_image,
+                height,
+                width,
+                callback_steps,
+                negative_prompt,
+                prompt_embeds,
+                negative_prompt_embeds,
+                controlnet_conditioning_scale,
             )
+            if ref_image is not None:  # for ref_only mode
+                self.check_ref_input(reference_attn, reference_adain)
+            if ref_mask is not None:
+                ref_mask = prepare_mask_image(ref_mask)
+                ref_mask = F.interpolate(
+                    ref_mask,
+                    size=(height // self.vae_scale_factor,
+                        width // self.vae_scale_factor),
+                )
 
-        # 3. Encode input prompt
-        prompt_embeds = self._encode_prompt(
-            prompt,
-            device,
-            num_images_per_prompt,
-            do_classifier_free_guidance,
-            negative_prompt,
-            prompt_embeds=prompt_embeds,
-            negative_prompt_embeds=negative_prompt_embeds,
-        )
-        if ref_image is not None:
-            ref_prompt_embeds = self._encode_prompt(
-                ref_prompt,
+            # 2. Define call parameters
+            if prompt is not None and isinstance(prompt, str):
+                batch_size = 1
+            elif prompt is not None and isinstance(prompt, list):
+                batch_size = len(prompt)
+            else:
+                batch_size = prompt_embeds.shape[0]
+
+            device = self._execution_device
+            # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
+            # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
+            # corresponds to doing no classifier free guidance.
+            do_classifier_free_guidance = guidance_scale > 1.0
+
+            if isinstance(self.controlnet, MultiControlNetModel) and isinstance(
+                controlnet_conditioning_scale, float
+            ):
+                controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(
+                    self.controlnet.nets
+                )
+
+            # 3. Encode input prompt
+            prompt_embeds = self._encode_prompt(
+                prompt,
                 device,
-                num_images_per_prompt * 2,
-                False,
-                # do_classifier_free_guidance,
-                negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
-                prompt_embeds=None,
+                num_images_per_prompt,
+                do_classifier_free_guidance,
+                negative_prompt,
+                prompt_embeds=prompt_embeds,
+                negative_prompt_embeds=negative_prompt_embeds,
             )
+            if ref_image is not None:
+                ref_prompt_embeds = self._encode_prompt(
+                    ref_prompt,
+                    device,
+                    num_images_per_prompt * 2,
+                    False,
+                    # do_classifier_free_guidance,
+                    negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+                    prompt_embeds=None,
+                )
 
-        # 4. Prepare mask, image, and controlnet_conditioning_image + ref_img
-        image = prepare_image(image)
+            # 4. Prepare mask, image, and controlnet_conditioning_image + ref_img
+            image = prepare_image(image)
 
-        mask_image = prepare_mask_image(mask_image)
+            mask_image = prepare_mask_image(mask_image)
 
-        # condition image(s)
-        if isinstance(self.controlnet, ControlNetModel):
-            controlnet_conditioning_image = prepare_controlnet_conditioning_image(
-                controlnet_conditioning_image=controlnet_conditioning_image,
-                width=width,
-                height=height,
-                batch_size=batch_size * num_images_per_prompt,
-                num_images_per_prompt=num_images_per_prompt,
-                device=device,
-                dtype=self.controlnet.dtype,
-                do_classifier_free_guidance=do_classifier_free_guidance,
-            )
-        elif isinstance(self.controlnet, MultiControlNetModel):
-            controlnet_conditioning_images = []
-
-            for image_ in controlnet_conditioning_image:
-                image_ = prepare_controlnet_conditioning_image(
-                    controlnet_conditioning_image=image_,
+            # condition image(s)
+            if isinstance(self.controlnet, ControlNetModel):
+                controlnet_conditioning_image = prepare_controlnet_conditioning_image(
+                    controlnet_conditioning_image=controlnet_conditioning_image,
                     width=width,
                     height=height,
                     batch_size=batch_size * num_images_per_prompt,
@@ -1387,196 +1374,184 @@ class StableDiffusionControlNetInpaintPipeline(
                     dtype=self.controlnet.dtype,
                     do_classifier_free_guidance=do_classifier_free_guidance,
                 )
-                controlnet_conditioning_images.append(image_)
+            elif isinstance(self.controlnet, MultiControlNetModel):
+                controlnet_conditioning_images = []
 
-            controlnet_conditioning_image = controlnet_conditioning_images
-        else:
-            assert False
+                for image_ in controlnet_conditioning_image:
+                    image_ = prepare_controlnet_conditioning_image(
+                        controlnet_conditioning_image=image_,
+                        width=width,
+                        height=height,
+                        batch_size=batch_size * num_images_per_prompt,
+                        num_images_per_prompt=num_images_per_prompt,
+                        device=device,
+                        dtype=self.controlnet.dtype,
+                        do_classifier_free_guidance=do_classifier_free_guidance,
+                    )
+                    controlnet_conditioning_images.append(image_)
 
-        masked_image = image * (mask_image < 0.5)
+                controlnet_conditioning_image = controlnet_conditioning_images
+            else:
+                assert False
 
-        if ref_image is not None:  # for ref_only mode
-            # Preprocess reference image
-            # from controlnet_aux import LineartDetector
-            # processor = LineartDetector.from_pretrained("lllyasviel/Annotators")
-            ref_ori = ref_image
-            ref_image = self.prepare_ref_image(
-                image=ref_image,
-                width=width,
-                height=height,
-                batch_size=batch_size * num_images_per_prompt,
-                num_images_per_prompt=num_images_per_prompt,
-                device=device,
-                dtype=prompt_embeds.dtype,
-            )
+            masked_image = image * (mask_image < 0.5)
 
-            ref_control_image = prepare_controlnet_conditioning_image(
-                controlnet_conditioning_image=ref_ori,
-                width=width,
-                height=height,
-                batch_size=batch_size * num_images_per_prompt,
-                num_images_per_prompt=num_images_per_prompt,
-                device=device,
-                dtype=self.controlnet.dtype,
-                do_classifier_free_guidance=False,
-                # do_classifier_free_guidance=do_classifier_free_guidance,
-            )
-            ref_controlnet_conditioning_image = controlnet_conditioning_image.copy()
-            for i in range(len(ref_controlnet_conditioning_image)):
-                ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(2)[0] # remove the extra guidance for cfg
-                print("ref_controlnet_conditioning_image[i]", ref_controlnet_conditioning_image[i].shape)
-            ref_controlnet_conditioning_image[-1] = ref_control_image
-
-            print("ref_control_image", ref_control_image.shape)
-            # ref_controlnet_conditioning_scale = controlnet_conditioning_scale.copy()
-            # ref_controlnet_conditioning_scale[0] = 1.0 # disable the first sam controlnet
-            # ref_controlnet_conditioning_scale[-1] = 0.2
-
-        # 5. Prepare timesteps
-        self.scheduler.set_timesteps(num_inference_steps, device=device)
-        timesteps = self.scheduler.timesteps
-
-        # 6. Prepare latent variables
-        num_channels_latents = self.vae.config.latent_channels
-        latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            num_channels_latents,
-            height,
-            width,
-            prompt_embeds.dtype,
-            device,
-            generator,
-            latents,
-        )
-
-        noise = latents
-
-        if self.unet.config.in_channels != 4:  # inpainting base model
-            mask_image_latents = self.prepare_mask_latents(
-                mask_image,
-                batch_size * num_images_per_prompt,
-                height,
-                width,
-                prompt_embeds.dtype,
-                device,
-                do_classifier_free_guidance,
-            )
-
-            masked_image_latents = self.prepare_masked_image_latents(
-                masked_image,
-                batch_size * num_images_per_prompt,
-                height,
-                width,
-                prompt_embeds.dtype,
-                device,
-                generator,
-                do_classifier_free_guidance,
-            )
-        if self.unet.config.in_channels == 4:  # non-inpainting base model
-            init_masked_image_latents = self.prepare_masked_image_latents(
-                image,
-                batch_size * num_images_per_prompt,
-                height,
-                width,
-                prompt_embeds.dtype,
-                device,
-                generator,
-                do_classifier_free_guidance,
-            )
-            if do_classifier_free_guidance:
-                init_masked_image_latents, _ = init_masked_image_latents.chunk(
-                    2)
-            # print(type(mask_image), mask_image.shape)
-            _, _, w, h = mask_image.shape
-            mask_image = torch.nn.functional.interpolate(
-                mask_image, ((w // 8, h // 8)), mode="nearest"
-            )
-            mask_image = mask_image.to(latents.device).type_as(latents)
-            mask_image = 1 - mask_image
-
-        if ref_image is not None:  # for ref_only mode
-            ref_image_latents = self.prepare_ref_latents(
-                ref_image,
-                batch_size * num_images_per_prompt,
-                prompt_embeds.dtype,
-                device,
-                generator,
-                False,
-                # do_classifier_free_guidance,
-            )
-
-        # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
-        extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-
-        if ref_image is not None:  # for ref_only mode
-            # Modify self attention and group norm
-            self.uc_mask = (
-                torch.Tensor(
-                    [1] * batch_size * num_images_per_prompt
-                    + [0] * batch_size * num_images_per_prompt
+            if ref_image is not None:  # for ref_only mode
+                # Preprocess reference image
+                # from controlnet_aux import LineartDetector
+                # processor = LineartDetector.from_pretrained("lllyasviel/Annotators")
+                ref_ori = ref_image
+                ref_image = self.prepare_ref_image(
+                    image=ref_image,
+                    width=width,
+                    height=height,
+                    batch_size=batch_size * num_images_per_prompt,
+                    num_images_per_prompt=num_images_per_prompt,
+                    device=device,
+                    dtype=prompt_embeds.dtype,
                 )
-                .type_as(ref_image_latents)
-                .bool()
-            )
-            self.attention_auto_machine_weight = attention_auto_machine_weight
-            self.gn_auto_machine_weight = gn_auto_machine_weight
-            self.do_classifier_free_guidance = do_classifier_free_guidance
-            self.style_fidelity = style_fidelity
-            self.ref_scale = ref_scale
-            self.ref_mask = ref_mask
-            self.inpaint_mask = mask_image
-            attn_modules, gn_modules = self.redefine_ref_model(
-                self.unet, reference_attn, reference_adain, model_type="unet"
+
+                ref_control_image = prepare_controlnet_conditioning_image(
+                    controlnet_conditioning_image=ref_ori,
+                    width=width,
+                    height=height,
+                    batch_size=batch_size * num_images_per_prompt,
+                    num_images_per_prompt=num_images_per_prompt,
+                    device=device,
+                    dtype=self.controlnet.dtype,
+                    do_classifier_free_guidance=False,
+                    # do_classifier_free_guidance=do_classifier_free_guidance,
+                )
+                ref_controlnet_conditioning_image = controlnet_conditioning_image.copy()
+                for i in range(len(ref_controlnet_conditioning_image)):
+                    ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(2)[0] # remove the extra guidance for cfg
+                    print("ref_controlnet_conditioning_image[i]", ref_controlnet_conditioning_image[i].shape)
+                ref_controlnet_conditioning_image[-1] = ref_control_image
+
+                print("ref_control_image", ref_control_image.shape)
+                # ref_controlnet_conditioning_scale = controlnet_conditioning_scale.copy()
+                # ref_controlnet_conditioning_scale[0] = 1.0 # disable the first sam controlnet
+                # ref_controlnet_conditioning_scale[-1] = 0.2
+
+            # 5. Prepare timesteps
+            self.scheduler.set_timesteps(num_inference_steps, device=device)
+            timesteps = self.scheduler.timesteps
+
+            # 6. Prepare latent variables
+            num_channels_latents = self.vae.config.latent_channels
+            latents = self.prepare_latents(
+                batch_size * num_images_per_prompt,
+                num_channels_latents,
+                height,
+                width,
+                prompt_embeds.dtype,
+                device,
+                generator,
+                latents,
             )
 
-            control_attn_modules, control_gn_modules = self.redefine_ref_model(
-                self.controlnet, reference_attn, False, model_type="controlnet"
-            )
-        if ref_image is not None: 
-            print("ref noise", ref_image_latents.shape)
-            noise = randn_tensor(
-                # ref_image_latents.shape,
-                latents.shape,
-                generator=generator,
-                device=ref_image_latents.device,
-                dtype=ref_image_latents.dtype,
-            )
-            # if do_classifier_free_guidance:
-            # noise = torch.cat((noise, noise), dim=0)
-        # 8. Denoising loop
-        num_warmup_steps = len(timesteps) - \
-            num_inference_steps * self.scheduler.order
+            noise = latents
+
+            if self.unet.config.in_channels != 4:  # inpainting base model
+                mask_image_latents = self.prepare_mask_latents(
+                    mask_image,
+                    batch_size * num_images_per_prompt,
+                    height,
+                    width,
+                    prompt_embeds.dtype,
+                    device,
+                    do_classifier_free_guidance,
+                )
+
+                masked_image_latents = self.prepare_masked_image_latents(
+                    masked_image,
+                    batch_size * num_images_per_prompt,
+                    height,
+                    width,
+                    prompt_embeds.dtype,
+                    device,
+                    generator,
+                    do_classifier_free_guidance,
+                )
+            if self.unet.config.in_channels == 4:  # non-inpainting base model
+                init_masked_image_latents = self.prepare_masked_image_latents(
+                    image,
+                    batch_size * num_images_per_prompt,
+                    height,
+                    width,
+                    prompt_embeds.dtype,
+                    device,
+                    generator,
+                    do_classifier_free_guidance,
+                )
+                if do_classifier_free_guidance:
+                    init_masked_image_latents, _ = init_masked_image_latents.chunk(
+                        2)
+                # print(type(mask_image), mask_image.shape)
+                _, _, w, h = mask_image.shape
+                mask_image = torch.nn.functional.interpolate(
+                    mask_image, ((w // 8, h // 8)), mode="nearest"
+                )
+                mask_image = mask_image.to(latents.device).type_as(latents)
+                mask_image = 1 - mask_image
+
+            if ref_image is not None:  # for ref_only mode
+                ref_image_latents = self.prepare_ref_latents(
+                    ref_image,
+                    batch_size * num_images_per_prompt,
+                    prompt_embeds.dtype,
+                    device,
+                    generator,
+                    False,
+                    # do_classifier_free_guidance,
+                )
+
+            # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
+            extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
+
+            if ref_image is not None:  # for ref_only mode
+                # Modify self attention and group norm
+                self.uc_mask = (
+                    torch.Tensor(
+                        [1] * batch_size * num_images_per_prompt
+                        + [0] * batch_size * num_images_per_prompt
+                    )
+                    .type_as(ref_image_latents)
+                    .bool()
+                )
+                self.attention_auto_machine_weight = attention_auto_machine_weight
+                self.gn_auto_machine_weight = gn_auto_machine_weight
+                self.do_classifier_free_guidance = do_classifier_free_guidance
+                self.style_fidelity = style_fidelity
+                self.ref_scale = ref_scale
+                self.ref_mask = ref_mask
+                self.inpaint_mask = mask_image
+                attn_modules, gn_modules = self.redefine_ref_model(
+                    self.unet, reference_attn, reference_adain, model_type="unet"
+                )
+
+                control_attn_modules, control_gn_modules = self.redefine_ref_model(
+                    self.controlnet, reference_attn, False, model_type="controlnet"
+                )
+            if ref_image is not None: 
+                print("ref noise", ref_image_latents.shape)
+                noise = randn_tensor(
+                    # ref_image_latents.shape,
+                    latents.shape,
+                    generator=generator,
+                    device=ref_image_latents.device,
+                    dtype=ref_image_latents.dtype,
+                )
+                # if do_classifier_free_guidance:
+                # noise = torch.cat((noise, noise), dim=0)
+            # 8. Denoising loop
+            num_warmup_steps = len(timesteps) - \
+                num_inference_steps * self.scheduler.order
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
                 # expand the latents if we are doing classifier free guidance
-                non_inpainting_latent_model_input = (
-                    torch.cat(
-                        [latents] * 2) if do_classifier_free_guidance else latents
-                )
 
-                non_inpainting_latent_model_input = self.scheduler.scale_model_input(
-                    non_inpainting_latent_model_input, t
-                )
-                if self.unet.config.in_channels != 4:  # inpainting base model
-                    inpainting_latent_model_input = torch.cat(
-                        [
-                            non_inpainting_latent_model_input,
-                            mask_image_latents,
-                            masked_image_latents,
-                        ],
-                        dim=1,
-                    )
-                else:
-                    inpainting_latent_model_input = non_inpainting_latent_model_input
-
-                if ref_image is not None:  # for ref_only mode
-                    # ref only part
-                    # noise = randn_tensor(
-                    #     ref_image_latents.shape,
-                    #     generator=generator,
-                    #     device=ref_image_latents.device,
-                    #     dtype=ref_image_latents.dtype,
-                    # )
+                if ref_image is not None:
                     ref_xt = self.scheduler.add_noise(
                         ref_image_latents,
                         noise,
@@ -1585,98 +1560,132 @@ class StableDiffusionControlNetInpaintPipeline(
                         ),
                     )
                     ref_xt = self.scheduler.scale_model_input(ref_xt, t)
-
-                    MODE = "write"
-                    self.change_module_mode(
-                        MODE, control_attn_modules, control_gn_modules
+                    if False: # if i == 10:
+                        latents = align_feature(latents, ref_xt, mask_image, ref_mask)
+                with torch.no_grad():
+                    non_inpainting_latent_model_input = (
+                        torch.cat(
+                            [latents] * 2) if do_classifier_free_guidance else latents
                     )
-                    # print("ref_xt", ref_xt.shape)
-                    # print("ref_prompt_embeds", ref_prompt_embeds.shape)
-                    (
-                        ref_down_block_res_samples,
-                        ref_mid_block_res_sample,
-                    ) = self.controlnet(
-                        ref_xt,
+
+                    non_inpainting_latent_model_input = self.scheduler.scale_model_input(
+                        non_inpainting_latent_model_input, t
+                    )
+                    if self.unet.config.in_channels != 4:  # inpainting base model
+                        inpainting_latent_model_input = torch.cat(
+                            [
+                                non_inpainting_latent_model_input,
+                                mask_image_latents,
+                                masked_image_latents,
+                            ],
+                            dim=1,
+                        )
+                    else:
+                        inpainting_latent_model_input = non_inpainting_latent_model_input
+                
+                    if ref_image is not None:  # for ref_only mode
+                        # ref only part
+
+                        MODE = "write"
+                        self.change_module_mode(
+                            MODE, control_attn_modules, control_gn_modules, t
+                        )
+
+                        (
+                            ref_down_block_res_samples,
+                            ref_mid_block_res_sample,
+                        ) = self.controlnet(
+                            ref_xt,
+                            t,
+                            encoder_hidden_states=ref_prompt_embeds,
+                            controlnet_cond=ref_controlnet_conditioning_image,
+                            conditioning_scale=ref_controlnet_conditioning_scale,
+                            guess_mode=guess_mode,
+                            return_dict=False,
+                        )
+
+                        self.change_module_mode(MODE, attn_modules, gn_modules, t)
+                        self.unet(
+                            ref_xt,
+                            t,
+                            encoder_hidden_states=ref_prompt_embeds,
+                            cross_attention_kwargs=cross_attention_kwargs,
+                            down_block_additional_residuals=ref_down_block_res_samples,
+                            mid_block_additional_residual=ref_mid_block_res_sample,
+                            return_dict=False,
+                        )
+                        del ref_down_block_res_samples
+                        del ref_mid_block_res_sample
+
+                        # predict the noise residual
+                        MODE = "read"  # change to read mode for following noise_pred
+                        self.change_module_mode(
+                            MODE, control_attn_modules, control_gn_modules, t
+                        )
+                        self.change_module_mode(MODE, attn_modules, gn_modules, t)
+
+                    down_block_res_samples, mid_block_res_sample = self.controlnet(
+                        non_inpainting_latent_model_input,
                         t,
-                        encoder_hidden_states=ref_prompt_embeds,
-                        controlnet_cond=ref_controlnet_conditioning_image,
-                        conditioning_scale=ref_controlnet_conditioning_scale,
+                        encoder_hidden_states=prompt_embeds,
+                        controlnet_cond=controlnet_conditioning_image,
+                        conditioning_scale=controlnet_conditioning_scale,
                         guess_mode=guess_mode,
                         return_dict=False,
                     )
-
-                    self.change_module_mode(MODE, attn_modules, gn_modules)
-                    self.unet(
-                        ref_xt,
-                        t,
-                        encoder_hidden_states=ref_prompt_embeds,
-                        cross_attention_kwargs=cross_attention_kwargs,
-                        down_block_additional_residuals=ref_down_block_res_samples,
-                        mid_block_additional_residual=ref_mid_block_res_sample,
-                        return_dict=False,
-                    )
-
                     # predict the noise residual
-                    MODE = "read"  # change to read mode for following noise_pred
-                    self.change_module_mode(MODE, attn_modules, gn_modules)
-                down_block_res_samples, mid_block_res_sample = self.controlnet(
-                    non_inpainting_latent_model_input,
-                    t,
-                    encoder_hidden_states=prompt_embeds,
-                    controlnet_cond=controlnet_conditioning_image,
-                    conditioning_scale=controlnet_conditioning_scale,
-                    guess_mode=guess_mode,
-                    return_dict=False,
-                )
-                # predict the noise residual
-                noise_pred = self.unet(
-                    inpainting_latent_model_input,
-                    t,
-                    encoder_hidden_states=prompt_embeds,
-                    cross_attention_kwargs=cross_attention_kwargs,
-                    down_block_additional_residuals=down_block_res_samples,
-                    mid_block_additional_residual=mid_block_res_sample,
-                ).sample
+                    noise_pred = self.unet(
+                        inpainting_latent_model_input,
+                        t,
+                        encoder_hidden_states=prompt_embeds,
+                        cross_attention_kwargs=cross_attention_kwargs,
+                        down_block_additional_residuals=down_block_res_samples,
+                        mid_block_additional_residual=mid_block_res_sample,
+                    ).sample
+                    
+                    del down_block_res_samples
+                    del mid_block_res_sample
+                    
 
-                # perform guidance
-                if do_classifier_free_guidance:
-                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                    noise_pred = noise_pred_uncond + guidance_scale * (
-                        noise_pred_text - noise_pred_uncond
-                    )
-
-                # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(
-                    noise_pred, t, latents, **extra_step_kwargs
-                ).prev_sample
-
-                # call the callback, if provided
-                if i == len(timesteps) - 1 or (
-                    (i + 1) > num_warmup_steps and (i +
-                                                    1) % self.scheduler.order == 0
-                ):
-                    progress_bar.update()
-                    if callback is not None and i % callback_steps == 0:
-                        callback(i, t, latents)
-
-                if self.unet.config.in_channels == 4 and alignment_ratio is not None:
-                    if i < len(timesteps) * alignment_ratio:
-                        # print(i, len(timesteps))
-                        # masking for non-inpainting models
-                        init_latents_proper = self.scheduler.add_noise(
-                            init_masked_image_latents, noise, timesteps[i + 1]
+                    # perform guidance
+                    if do_classifier_free_guidance:
+                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                        noise_pred = noise_pred_uncond + guidance_scale * (
+                            noise_pred_text - noise_pred_uncond
                         )
-                        latents = (init_latents_proper * mask_image) + (
+
+                    # compute the previous noisy sample x_t -> x_t-1
+                    latents = self.scheduler.step(
+                        noise_pred, t, latents, **extra_step_kwargs
+                    ).prev_sample
+
+                    # call the callback, if provided
+                    if i == len(timesteps) - 1 or (
+                        (i + 1) > num_warmup_steps and (i +
+                                                        1) % self.scheduler.order == 0
+                    ):
+                        progress_bar.update()
+                        if callback is not None and i % callback_steps == 0:
+                            callback(i, t, latents)
+
+                    if self.unet.config.in_channels == 4 and alignment_ratio is not None:
+                        if i < len(timesteps) * alignment_ratio:
+                            # print(i, len(timesteps))
+                            # masking for non-inpainting models
+                            init_latents_proper = self.scheduler.add_noise(
+                                init_masked_image_latents, noise, timesteps[i + 1]
+                            )
+                            latents = (init_latents_proper * mask_image) + (
+                                latents * (1 - mask_image)
+                            )
+
+                    if self.unet.config.in_channels == 4 and (
+                        alignment_ratio == 1.0 or alignment_ratio is None
+                    ):
+                        # fill the unmasked part with original image
+                        latents = (init_masked_image_latents * mask_image) + (
                             latents * (1 - mask_image)
                         )
-
-            if self.unet.config.in_channels == 4 and (
-                alignment_ratio == 1.0 or alignment_ratio is None
-            ):
-                # fill the unmasked part with original image
-                latents = (init_masked_image_latents * mask_image) + (
-                    latents * (1 - mask_image)
-                )
 
         # If we do sequential model offloading, let's offload unet and controlnet
         # manually for max memory savings
@@ -1690,7 +1699,8 @@ class StableDiffusionControlNetInpaintPipeline(
             has_nsfw_concept = None
         elif output_type == "pil":
             # 8. Post-processing
-            image = self.decode_latents(latents)
+            with torch.no_grad():
+                image = self.decode_latents(latents.detach())
 
             # 9. Run safety checker
             image, has_nsfw_concept = self.run_safety_checker(

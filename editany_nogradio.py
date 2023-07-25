@@ -3,7 +3,7 @@ from editany_lora import EditAnythingLoraModel
 model = EditAnythingLoraModel(
     base_model_path="runwayml/stable-diffusion-v1-5",
     controlmodel_name='LAION Pretrained(v0-4)-SD15',
-    lora_model_path=None, use_blip=True, extra_inpaint=True,
+    lora_model_path=None, use_blip=False, extra_inpaint=True,
 )
 
 with open('input_data.pkl', 'rb') as f:
