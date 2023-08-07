@@ -65,7 +65,7 @@ if __name__ == "__main__":
         base_model_path=os.path.join(
             sd_models_path, "chilloutmix_NiPrunedFp32Fix"),
         lora_model_path=lora_model_path,
-        use_blip=False,
+        use_blip=True,
         extra_inpaint=True,
         lora_weight=0.5,
     )

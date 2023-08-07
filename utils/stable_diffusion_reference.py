@@ -1356,7 +1356,7 @@ class StableDiffusionReferencePipeline:
 
         return attn_modules, gn_modules
 
-    def change_module_mode(self, mode, attn_modules, gn_modules, step):
+    def change_module_mode(self, mode, attn_modules, gn_modules, step=None):
         if attn_modules is not None:
             for i, module in enumerate(attn_modules):
                 module.MODE = mode
@@ -1367,18 +1367,18 @@ class StableDiffusionReferencePipeline:
                 # module.step = step
                 
 
-def align_feature(target, ref, target_mask, ref_mask, iter=0):
+def align_feature(target, ref, target_mask, ref_mask, iter=100):
     target = target.detach().to(torch.float32).clone().requires_grad_(True)
     ref.detach()
     target_mask.detach()
     ref_mask.detach()
 
-    optimizer = torch.optim.Adam([target], lr=5e-4)
+    optimizer = torch.optim.Adam([target], lr=1e-2)
     scaler = torch.cuda.amp.GradScaler()
 
     for i in range(iter):
         with torch.autocast(device_type='cuda'):
-            loss = find_closest_features(target, ref, target_mask, ref_mask, k=5)
+            loss = find_closest_features(target, ref, target_mask, ref_mask, k=20)
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -1402,39 +1402,128 @@ def find_closest_features(target, ref, target_mask, ref_mask, k):
     loss (torch.Tensor): Alignment loss tensor.
     """
     # Expand target_mask and ref_mask to the same shape as feature tensors for element-wise multiplication
-    target_mask = target_mask.expand_as(target)
-    ref_mask = ref_mask.expand_as(ref)
+    n = target.shape[0]
+    ref_mask = ref_mask.to(target.device)
+    target_mask_expand = target_mask.expand_as(target)
+    ref_mask_expand = ref_mask.expand_as(ref)
 
     # Extract valid feature regions based on the masks
-    target_features = target[target_mask == 1]
-    ref_features = ref[ref_mask == 1]
+    target_features = target[target_mask_expand == 1]
+    ref_features = ref[ref_mask_expand == 1]
     # Reshape to (N, k, C) where k is the number of closest features
-    target_features = target_features.view(target.shape[0], -1, target.shape[1])
-    ref_features = ref_features.view(ref.shape[0], -1, ref.shape[1])
+    target_features = target_features.view(n, -1, target.shape[1])
+    ref_features = ref_features.view(n, -1, ref.shape[1])
     # print(target_features.shape, ref_features.shape)
 
     # Calculate the distance matrix between target features and reference features
     distance_matrix = torch.norm(ref_features[:, :, None] - target_features[:, None], dim=3)
-    # ref 4,1582,4-> 4,1582,1,4, target: 4,3090,4->4,1,3090,4  = 4,1582,3090
     min_values, min_indices = torch.min(distance_matrix, dim=2)
-    # 4, 1582
     top_k_values, ref_k_indices = torch.topk(min_values, k, dim=1, largest=False)
-    # 4, k
     
-    # print(ref_k_indices.shape, top_k_values.shape)
-
-    # print("min_indices",min_indices.shape)
     target_k_indices = torch.gather(min_indices, dim=1, index=ref_k_indices)
-    
-    # print(target_k_indices.shape)
+
     
     target_k_feature = torch.gather(target_features, dim=1, index = target_k_indices.unsqueeze(dim=-1).repeat(1,1,target_features.shape[-1]))
     ref_k_feature = torch.gather(ref_features, dim=1, index = ref_k_indices.unsqueeze(dim=-1).repeat(1,1,ref_features.shape[-1]))
-    # print(target_k_feature.shape)
-    # print(ref_k_feature.shape)
-    
-    # Calculate the loss: alignment loss is the mean of the distances between target features and closest reference features
-    loss = torch.nn.functional.l1_loss(target_k_feature, ref_k_feature.detach())
-    print("loss",loss)
 
-    return loss
+    
+    # Calculate the loss
+    loss = torch.nn.functional.l1_loss(target_k_feature, ref_k_feature.detach())
+    
+    # Reshape the indices to (N, k, 1) to gather the coordinates
+    target_k_indices_expanded = target_k_indices[:, :, None]
+    ref_k_indices_expanded = ref_k_indices[:, :, None]
+
+    # Gather coordinates of the closest features
+    target_mask = target_mask.squeeze().squeeze() # h,w
+    ref_mask = ref_mask.squeeze().squeeze() # h,w
+    target_coordinates = torch.nonzero(target_mask).view(1, -1, 2).repeat(n,1,1)
+    ref_coordinates = torch.nonzero(ref_mask).view(1, -1, 2).repeat(n,1,1)
+    
+
+    # Gather the coordinates of the k closest features using the indices
+    target_k_coordinates = torch.gather(target_coordinates, dim=1, index=target_k_indices_expanded.repeat(1, 1, 2))
+    ref_k_coordinates = torch.gather(ref_coordinates, dim=1, index=ref_k_indices_expanded.repeat(1, 1, 2).to(ref_coordinates.device))
+    loss_patch = calculate_patch_loss(target, ref, target_k_coordinates, ref_k_coordinates, r=5)
+    print("loss", loss.item(), "loss_patch", loss_patch.item())
+
+    return loss + loss_patch
+
+def calculate_patch_loss(target, ref, target_k_coordinates, ref_k_coordinates, r):
+    device = target.device
+    n, c, h, w = target.size()
+
+    total_loss = 0.0
+
+    for i in range(n):
+        for j in range(target_k_coordinates.shape[1]):
+            # Get the coordinates of the patch centers
+            target_x, target_y = target_k_coordinates[i, j]
+            ref_x, ref_y = ref_k_coordinates[i, j]
+
+            # Calculate the coordinates of the patch in the original image
+            target_patch_x = torch.arange(target_x - r, target_x + r + 1).long().to(device)
+            target_patch_y = torch.arange(target_y - r, target_y + r + 1).long().to(device)
+            ref_patch_x = torch.arange(ref_x - r, ref_x + r + 1).long().to(device)
+            ref_patch_y = torch.arange(ref_y - r, ref_y + r + 1).long().to(device)
+
+            # Clip the coordinates to handle out-of-bounds values
+            target_patch_x = torch.clamp(target_patch_x, 0, h - 1)
+            target_patch_y = torch.clamp(target_patch_y, 0, w - 1)
+            ref_patch_x = torch.clamp(ref_patch_x, 0, h - 1)
+            ref_patch_y = torch.clamp(ref_patch_y, 0, w - 1)
+
+            # Crop the patches from the target and ref images using indexing
+            target_patch = target[i, :, target_patch_x[:, None], target_patch_y]
+            ref_patch = ref[i, :, ref_patch_x[:, None], ref_patch_y]
+
+            # Calculate the loss between the patches
+            loss = F.mse_loss(target_patch, ref_patch)
+
+            # Accumulate the loss
+            total_loss += loss
+
+    # Average the total loss
+    total_loss /= (n * target_k_coordinates.shape[1])
+
+    return total_loss
+# def calculate_patch_loss(target, ref, target_k_coordinates, ref_k_coordinates, r):
+#     device = target.device
+#     n, c, h, w = target.size()
+#     k = target_k_coordinates.shape[1]
+
+#     # Generate grid coordinates for cropping patches
+#     grid_y, grid_x = torch.meshgrid(torch.arange(-r, r+1), torch.arange(-r, r+1))
+#     grid = torch.stack((grid_x, grid_y), dim=0).float().to(device)
+#     # Reshape grid to match target_k_coordinates
+#     grid = grid.unsqueeze(0).unsqueeze(0).repeat(n, k, 1, 1, 1)
+#     # n,k,2,7,7
+
+#     # Calculate target and ref grid coordinates
+#     target_grid = target_k_coordinates.unsqueeze(-1).unsqueeze(-1).repeat(1,1, 1, 2*r+1, 2*r+1) + grid
+
+#     # n,k,2  -> n,k,2,1,1
+#     ref_grid = ref_k_coordinates.unsqueeze(-1).unsqueeze(-1).repeat(1,1, 1, 2*r+1, 2*r+1)  + grid
+
+#     # Clip the grid coordinates to handle out-of-bounds values
+#     # target_grid = torch.clamp(target_grid[:,:,0], 0, h-1)
+#     # ref_grid = torch.clamp(ref_grid[:,:,0], 0, h-1)
+#     # target_grid = torch.clamp(target_grid[:,:,1], 0, w-1)
+#     # ref_grid = torch.clamp(ref_grid[:,:,1], 0, w-1)
+#     # n k 2 7 7 
+#     target_grid = target_grid.view(n,k,2,-1).permute(0,1,3,2).reshape(n,-1,2).long() #
+#     ref_grid = ref_grid.view(n,k,2,-1).permute(0,1,3,2).reshape(n,-1,2).long()
+    
+
+#     # Sample the patches using grid_sample
+#     target_patches = target[:, :, target_grid[:, :, 0], target_grid[:, :, 1]]
+#     ref_patches = ref[:, :, ref_grid[:, :, 0], ref_grid[:, :, 1]]
+
+#     # target_patches = F.grid_sample(target, target_grid, align_corners=False)
+#     # ref_patches = F.grid_sample(ref, ref_grid, align_corners=False)
+
+
+#     # Step 3: Calculate the loss between the patches
+#     patch_loss = torch.nn.functional.l1_loss(target_patches, ref_patches.detach())
+
+#     return patch_loss
