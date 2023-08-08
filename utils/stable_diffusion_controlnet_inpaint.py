@@ -1179,6 +1179,7 @@ class StableDiffusionControlNetInpaintPipeline(
         style_fidelity: float = 0.5,
         reference_attn: bool = True,
         reference_adain: bool = True,
+        ref_scale: float = 1.0,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1272,6 +1273,8 @@ class StableDiffusionControlNetInpaintPipeline(
                 Whether to use reference query for self attention's context.
             reference_adain (`bool`):
                 Whether to use reference adain.
+            ref_scale (`float`):
+                reference guidance scale.
 
         Examples:
 
@@ -1346,8 +1349,9 @@ class StableDiffusionControlNetInpaintPipeline(
             ref_prompt_embeds = self._encode_prompt(
                 ref_prompt,
                 device,
-                num_images_per_prompt * 2,
-                do_classifier_free_guidance,
+                # num_images_per_prompt * 2,
+                num_images_per_prompt * 1,
+                False,
                 negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
                 prompt_embeds=None,
             )
@@ -1414,13 +1418,13 @@ class StableDiffusionControlNetInpaintPipeline(
                 num_images_per_prompt=num_images_per_prompt,
                 device=device,
                 dtype=self.controlnet.dtype,
-                do_classifier_free_guidance=do_classifier_free_guidance,
+                do_classifier_free_guidance=False,
             )
             ref_controlnet_conditioning_image = controlnet_conditioning_image.copy()
+            for i in range(len(ref_controlnet_conditioning_image)):
+                ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(
+                    2)[0]  # remove the extra guidance for cfg
             ref_controlnet_conditioning_image[-1] = ref_control_image
-            # ref_controlnet_conditioning_scale = controlnet_conditioning_scale.copy()
-            # ref_controlnet_conditioning_scale[0] = 1.0 # disable the first sam controlnet
-            # ref_controlnet_conditioning_scale[-1] = 0.2
 
         # 5. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -1491,7 +1495,7 @@ class StableDiffusionControlNetInpaintPipeline(
                 prompt_embeds.dtype,
                 device,
                 generator,
-                do_classifier_free_guidance,
+                False,
             )
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -1511,6 +1515,7 @@ class StableDiffusionControlNetInpaintPipeline(
             self.gn_auto_machine_weight = gn_auto_machine_weight
             self.do_classifier_free_guidance = do_classifier_free_guidance
             self.style_fidelity = style_fidelity
+            self.ref_scale = ref_scale
             self.ref_mask = ref_mask
             self.inpaint_mask = mask_image
             attn_modules, gn_modules = self.redefine_ref_model(
@@ -1518,9 +1523,16 @@ class StableDiffusionControlNetInpaintPipeline(
             )
 
             control_attn_modules, control_gn_modules = self.redefine_ref_model(
-                self.controlnet, reference_attn, False, model_type="controlnet"
+                self.controlnet, reference_attn, reference_adain, model_type="controlnet"
             )
-
+        if ref_image is not None:
+            noise = randn_tensor(
+                # ref_image_latents.shape,
+                latents.shape,
+                generator=generator,
+                device=ref_image_latents.device,
+                dtype=ref_image_latents.dtype,
+            )
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - \
             num_inference_steps * self.scheduler.order
@@ -1549,12 +1561,6 @@ class StableDiffusionControlNetInpaintPipeline(
 
                 if ref_image is not None:  # for ref_only mode
                     # ref only part
-                    noise = randn_tensor(
-                        ref_image_latents.shape,
-                        generator=generator,
-                        device=ref_image_latents.device,
-                        dtype=ref_image_latents.dtype,
-                    )
                     ref_xt = self.scheduler.add_noise(
                         ref_image_latents,
                         noise,
@@ -1566,8 +1572,8 @@ class StableDiffusionControlNetInpaintPipeline(
 
                     MODE = "write"
                     self.change_module_mode(
-                        MODE, control_attn_modules, control_gn_modules
-                    )
+                        MODE, control_attn_modules, control_gn_modules)
+                    self.change_module_mode(MODE, attn_modules, gn_modules)
 
                     (
                         ref_down_block_res_samples,
@@ -1582,7 +1588,6 @@ class StableDiffusionControlNetInpaintPipeline(
                         return_dict=False,
                     )
 
-                    self.change_module_mode(MODE, attn_modules, gn_modules)
                     self.unet(
                         ref_xt,
                         t,
@@ -1595,7 +1600,10 @@ class StableDiffusionControlNetInpaintPipeline(
 
                     # predict the noise residual
                     MODE = "read"  # change to read mode for following noise_pred
+                    self.change_module_mode(
+                        MODE, control_attn_modules, control_gn_modules)
                     self.change_module_mode(MODE, attn_modules, gn_modules)
+
                 down_block_res_samples, mid_block_res_sample = self.controlnet(
                     non_inpainting_latent_model_input,
                     t,

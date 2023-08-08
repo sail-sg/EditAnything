@@ -14,7 +14,7 @@ import random
 import os
 import requests
 from io import BytesIO
-from annotator.util import resize_image, HWC3, resize_points, get_bounding_box
+from annotator.util import resize_image, HWC3, resize_points, get_bounding_box, save_input_to_file
 
 import torch
 from safetensors.torch import load_file
@@ -28,8 +28,7 @@ from utils.stable_diffusion_controlnet_inpaint import StableDiffusionControlNetI
 # need the latest transformers
 # pip install git+https://github.com/huggingface/transformers.git
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
-from diffusers import ControlNetModel, DiffusionPipeline
-from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
+from diffusers import ControlNetModel
 import PIL.Image
 
 # Segment-Anything init.
@@ -120,8 +119,8 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     max_length = pipeline.tokenizer.model_max_length
 
     # simple way to determine length of tokens
-    count_prompt = len(re.split(r", ", prompt))
-    count_negative_prompt = len(re.split(r", ", negative_prompt))
+    count_prompt = len(re.split(r",", prompt))
+    count_negative_prompt = len(re.split(r",", negative_prompt))
 
     # create the tensor based on which prompt is longer
     if count_prompt >= count_negative_prompt:
@@ -152,8 +151,10 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     concat_embeds = []
     neg_embeds = []
     for i in range(0, shape_max_length, max_length):
-        concat_embeds.append(pipeline.text_encoder(input_ids[:, i : i + max_length])[0])
-        neg_embeds.append(pipeline.text_encoder(negative_ids[:, i : i + max_length])[0])
+        concat_embeds.append(pipeline.text_encoder(
+            input_ids[:, i: i + max_length])[0])
+        neg_embeds.append(pipeline.text_encoder(
+            negative_ids[:, i: i + max_length])[0])
 
     return torch.cat(concat_embeds, dim=1), torch.cat(neg_embeds, dim=1)
 
@@ -178,10 +179,12 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
         for layer, elems in updates.items():
 
             if "text" in layer:
-                layer_infos = layer.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
+                layer_infos = layer.split(
+                    LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
                 curr_layer = pipeline.text_encoder
             else:
-                layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                layer_infos = layer.split(
+                    LORA_PREFIX_UNET + "_")[-1].split("_")
                 curr_layer = pipeline.unet
 
             # find the target layer
@@ -244,7 +247,8 @@ def load_lora_weights(pipeline, checkpoint_path, multiplier, device, dtype):
                     )
                     curr_layer = pipeline.text_encoder
                 else:
-                    layer_infos = layer.split(LORA_PREFIX_UNET + "_")[-1].split("_")
+                    layer_infos = layer.split(
+                        LORA_PREFIX_UNET + "_")[-1].split("_")
                     curr_layer = pipeline.unet
 
                 # find the target layer
@@ -489,7 +493,7 @@ class EditAnythingLoraModel:
         self.mask_predictor.set_image(image)
         # Separate the points and labels
         points, labels = zip(*[(point[:2], point[2])
-                             for point in clicked_points])
+                               for point in clicked_points])
 
         # Convert the points and labels to numpy arrays
         input_point = np.array(points)
@@ -534,7 +538,8 @@ class EditAnythingLoraModel:
         mask_click_np = np.transpose(mask_click_np, (1, 2, 0)) * 255.0
 
         mask_image = HWC3(mask_click_np.astype(np.uint8))
-        mask_image = cv2.resize(mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
+        mask_image = cv2.resize(
+            mask_image, (W, H), interpolation=cv2.INTER_LINEAR)
         # mask_image = Image.fromarray(mask_image_tmp)
 
         # Draw circles for all clicked points
@@ -567,6 +572,7 @@ class EditAnythingLoraModel:
         )
 
     @torch.inference_mode()
+    @save_input_to_file  # for debug use
     def process(
         self,
         source_image,
@@ -602,6 +608,7 @@ class EditAnythingLoraModel:
         ref_auto_prompt=False,
         ref_textinv=True,
         ref_textinv_path=None,
+        ref_scale=None,
     ):
 
         if condition_model is None or condition_model == "EditAnything":
@@ -624,14 +631,9 @@ class EditAnythingLoraModel:
                 )
                 self.defalut_enable_all_generate = enable_all_generate
             if enable_all_generate:
-                print(
-                    "source_image",
-                    source_image["mask"].shape,
-                    input_image.shape,
-                )
                 mask_image = (
                     np.ones((input_image.shape[0],
-                            input_image.shape[1], 3)) * 255
+                             input_image.shape[1], 3)) * 255
                 )
             else:
                 mask_image = source_image["mask"]
@@ -699,11 +701,13 @@ class EditAnythingLoraModel:
                 except:
                     print("No textinvert embeddings found.")
                     ref_data_path = "./utils/tmp/textinv/img"
-                    if not os.path.exists(ref_data_path):   
+                    if not os.path.exists(ref_data_path):
                         os.makedirs(ref_data_path)
-                    cropped_ref_image.save(os.path.join(ref_data_path, 'ref.png'))
+                    cropped_ref_image.save(
+                        os.path.join(ref_data_path, 'ref.png'))
                     print("Ref image region is save to:", ref_data_path)
-                    print("Plese finetune with run_texutal_inversion.sh in utils folder to get the textinvert embeddings.")
+                    print(
+                        "Plese finetune with run_texutal_inversion.sh in utils folder to get the textinvert embeddings.")
 
         else:
             ref_mask = None
@@ -735,7 +739,7 @@ class EditAnythingLoraModel:
             )
 
             control = torch.from_numpy(detected_map.copy()).float().cuda()
-            control = torch.stack([control for _ in range(num_samples)], dim=0)
+            control = control.unsqueeze(dim=0)
             control = einops.rearrange(control, "b h w c -> b c h w").clone()
 
             mask_imag_ori = HWC3(mask_image.astype(np.uint8))
@@ -753,14 +757,8 @@ class EditAnythingLoraModel:
             prompt_embeds, negative_prompt_embeds = get_pipeline_embeds(
                 self.pipe, postive_prompt, negative_prompt, "cuda"
             )
-            prompt_embeds = torch.cat([prompt_embeds] * num_samples, dim=0)
-            negative_prompt_embeds = torch.cat(
-                [negative_prompt_embeds] * num_samples, dim=0
-            )
 
             if enable_all_generate and self.extra_inpaint:
-                self.pipe.safety_checker = lambda images, clip_input: (
-                    images, False)
                 if ref_image is not None:
                     print("Not support yet.")
                     return
@@ -845,6 +843,7 @@ class EditAnythingLoraModel:
                         reference_adain=reference_adain,
                         ref_controlnet_conditioning_scale=ref_multi_condition_scale,
                         guess_mode=guess_mode,
+                        ref_scale=ref_scale,
                     ).images
             results = [x_samples[i] for i in range(num_samples)]
 

@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import os
-
+import pickle
 
 annotator_ckpts_path = os.path.join(os.path.dirname(__file__), 'ckpts')
 
@@ -71,3 +71,25 @@ def get_bounding_box(mask):
     
     # Return as [xmin, ymin, xmax, ymax]
     return [rmin, cmin, rmax, cmax]
+
+
+
+def save_input_to_file(func):
+    def wrapper(self, *args, **kwargs):
+        # 创建不包含 self 的输入副本
+        input_data = {
+            'args': args,
+            'kwargs': kwargs
+        }
+        
+        # 执行原始函数
+        result = func(self, *args, **kwargs)
+        
+        # 将输入数据保存到文件
+        with open('input_data.pkl', 'wb') as f:
+            pickle.dump(input_data, f)
+        
+        # 返回结果
+        return result
+
+    return wrapper
