@@ -11,7 +11,9 @@ with open('input_data.pkl', 'rb') as f:
 
 print(input_data)
     
-res = model.process(*input_data['args'], **input_data['kwargs'])
+refined, output, ref, text = model.process(*input_data['args'], **input_data['kwargs'])
+
+output
 
 # a woman in a tan suit and white shirt
 

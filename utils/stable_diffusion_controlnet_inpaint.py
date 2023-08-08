@@ -34,7 +34,7 @@ from diffusers.utils import (
     replace_example_docstring,
 )
 from diffusers.loaders import LoraLoaderMixin, TextualInversionLoaderMixin
-from utils.stable_diffusion_reference import StableDiffusionReferencePipeline, align_feature
+from utils.stable_diffusion_reference import StableDiffusionReferencePipeline
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -1349,9 +1349,9 @@ class StableDiffusionControlNetInpaintPipeline(
             ref_prompt_embeds = self._encode_prompt(
                 ref_prompt,
                 device,
-                num_images_per_prompt * 2,
+                # num_images_per_prompt * 2,
+                num_images_per_prompt * 1,
                 False,
-                # do_classifier_free_guidance,
                 negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
                 prompt_embeds=None,
             )
@@ -1419,18 +1419,12 @@ class StableDiffusionControlNetInpaintPipeline(
                 device=device,
                 dtype=self.controlnet.dtype,
                 do_classifier_free_guidance=False,
-                # do_classifier_free_guidance=do_classifier_free_guidance,
             )
             ref_controlnet_conditioning_image = controlnet_conditioning_image.copy()
             for i in range(len(ref_controlnet_conditioning_image)):
-                ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(2)[0] # remove the extra guidance for cfg
-                print("ref_controlnet_conditioning_image[i]", ref_controlnet_conditioning_image[i].shape)
+                ref_controlnet_conditioning_image[i] = ref_controlnet_conditioning_image[i].chunk(
+                    2)[0]  # remove the extra guidance for cfg
             ref_controlnet_conditioning_image[-1] = ref_control_image
-
-            print("ref_control_image", ref_control_image.shape)
-            # ref_controlnet_conditioning_scale = controlnet_conditioning_scale.copy()
-            # ref_controlnet_conditioning_scale[0] = 1.0 # disable the first sam controlnet
-            # ref_controlnet_conditioning_scale[-1] = 0.2
 
         # 5. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -1502,7 +1496,6 @@ class StableDiffusionControlNetInpaintPipeline(
                 device,
                 generator,
                 False,
-                # do_classifier_free_guidance,
             )
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
@@ -1530,10 +1523,9 @@ class StableDiffusionControlNetInpaintPipeline(
             )
 
             control_attn_modules, control_gn_modules = self.redefine_ref_model(
-                self.controlnet, reference_attn, False, model_type="controlnet"
+                self.controlnet, reference_attn, reference_adain, model_type="controlnet"
             )
-        if ref_image is not None: 
-            print("ref noise", ref_image_latents.shape)
+        if ref_image is not None:
             noise = randn_tensor(
                 # ref_image_latents.shape,
                 latents.shape,
@@ -1541,8 +1533,6 @@ class StableDiffusionControlNetInpaintPipeline(
                 device=ref_image_latents.device,
                 dtype=ref_image_latents.dtype,
             )
-            # if do_classifier_free_guidance:
-            # noise = torch.cat((noise, noise), dim=0)
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - \
             num_inference_steps * self.scheduler.order
@@ -1571,12 +1561,6 @@ class StableDiffusionControlNetInpaintPipeline(
 
                 if ref_image is not None:  # for ref_only mode
                     # ref only part
-                    # noise = randn_tensor(
-                    #     ref_image_latents.shape,
-                    #     generator=generator,
-                    #     device=ref_image_latents.device,
-                    #     dtype=ref_image_latents.dtype,
-                    # )
                     ref_xt = self.scheduler.add_noise(
                         ref_image_latents,
                         noise,
@@ -1585,24 +1569,12 @@ class StableDiffusionControlNetInpaintPipeline(
                         ),
                     )
                     ref_xt = self.scheduler.scale_model_input(ref_xt, t)
-                    
-                    # if i >= 20 and i <=30:
-                    # # if i == 0:
-                    #     if do_classifier_free_guidance:
-                    #         latent_to_opt = inpainting_latent_model_input.chunk(2)[0]
-                    #     else:
-                    #         latent_to_opt = inpainting_latent_model_input
-                    #     with torch.enable_grad():
-                    #         latent_to_opt = align_feature(latent_to_opt, ref_xt, mask_image, ref_mask)
-                        
-                    #     inpainting_latent_model_input = torch.cat([latent_to_opt]*2, dim=0).detach()
 
                     MODE = "write"
                     self.change_module_mode(
-                        MODE, control_attn_modules, control_gn_modules
-                    )
-                    # print("ref_xt", ref_xt.shape)
-                    # print("ref_prompt_embeds", ref_prompt_embeds.shape)
+                        MODE, control_attn_modules, control_gn_modules)
+                    self.change_module_mode(MODE, attn_modules, gn_modules)
+
                     (
                         ref_down_block_res_samples,
                         ref_mid_block_res_sample,
@@ -1616,7 +1588,6 @@ class StableDiffusionControlNetInpaintPipeline(
                         return_dict=False,
                     )
 
-                    self.change_module_mode(MODE, attn_modules, gn_modules)
                     self.unet(
                         ref_xt,
                         t,
@@ -1629,7 +1600,10 @@ class StableDiffusionControlNetInpaintPipeline(
 
                     # predict the noise residual
                     MODE = "read"  # change to read mode for following noise_pred
+                    self.change_module_mode(
+                        MODE, control_attn_modules, control_gn_modules)
                     self.change_module_mode(MODE, attn_modules, gn_modules)
+
                 down_block_res_samples, mid_block_res_sample = self.controlnet(
                     non_inpainting_latent_model_input,
                     t,
@@ -1688,21 +1662,6 @@ class StableDiffusionControlNetInpaintPipeline(
                 latents = (init_masked_image_latents * mask_image) + (
                     latents * (1 - mask_image)
                 )
-            # if i >= 28 and i <=30:
-            #     with torch.enable_grad():
-            #         if i == 29:
-            #             ref_xt = ref_image_latents
-            #         else:
-            #             tp1 = timesteps[i+1]
-            #             ref_xt = self.scheduler.add_noise(
-            #                 ref_image_latents,
-            #                 noise,
-            #                 tp1.reshape(
-            #                     1,
-            #                 ),
-            #             )
-            #             ref_xt = self.scheduler.scale_model_input(ref_xt, tp1)
-            #         latents = align_feature(latents, ref_xt, mask_image, ref_mask)
 
         # If we do sequential model offloading, let's offload unet and controlnet
         # manually for max memory savings

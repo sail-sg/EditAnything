@@ -1,6 +1,10 @@
 # Edit Anything trained with Stable Diffusion + ControlNet + SAM  + BLIP2
 import gradio as gr
 
+import numpy as np
+import cv2
+from cv2 import imencode
+import base64
 
 def create_demo_template(
     process,
@@ -22,7 +26,7 @@ def create_demo_template(
         ref_click_mask = gr.State(None)
         with gr.Row():
             gr.Markdown(INFO)
-        with gr.Row().style(equal_height=False):
+        with gr.Row(equal_height=False):
             with gr.Column():
                 with gr.Tab("Click🖱"):
                     source_image_click = gr.Image(
@@ -40,12 +44,13 @@ def create_demo_template(
                                 interactive=True,
                                 show_label=False,
                             )
-                            clear_button_click = gr.Button(
-                                value="Clear Click Points", interactive=True
-                            )
-                            clear_button_image = gr.Button(
-                                value="Clear Image", interactive=True
-                            )
+                            with gr.Row():
+                                clear_button_click = gr.Button(
+                                    value="Clear Points", interactive=True
+                                )
+                                clear_button_image = gr.Button(
+                                    value="Reset Image", interactive=True
+                                )
                         with gr.Row():
                             run_button_click = gr.Button(
                                 label="Run EditAnying", interactive=True
@@ -56,63 +61,75 @@ def create_demo_template(
                         label="Image: Upload an image and cover the region you want to edit with sketch",
                         type="numpy",
                         tool="sketch",
+                        brush_color="#00FFBF"
                     )
                     run_button = gr.Button(
                         label="Run EditAnying", interactive=True)
-                with gr.Column():
-                    enable_all_generate = gr.Checkbox(
-                        label="Auto generation on all region.", value=False
+                with gr.Tab("All region"):
+                    source_image_clean = gr.Image(
+                        source="upload",
+                        label="Image: Upload an image",
+                        type="numpy",
                     )
+                    run_button_allregion = gr.Button(
+                        label="Run EditAnying", interactive=True)
+                with gr.Row():
+                    # enable_all_generate = gr.Checkbox(
+                    #     label="All Region Generation", value=False
+                    # )
                     control_scale = gr.Slider(
-                        label="Mask Align strength",
-                        info="Large value -> strict alignment with SAM mask",
+                        label="SAM Mask Alignment Strength",
+                        # info="Large value -> strict alignment with SAM mask",
                         minimum=0,
                         maximum=1,
                         value=0.5,
                         step=0.1,
                     )
+                    with gr.Row():
+                        num_samples = gr.Slider(
+                            label="Images", minimum=1, maximum=12, value=2, step=1
+                        )
+                        seed = gr.Slider(
+                            label="Seed",
+                            minimum=-1,
+                            maximum=2147483647,
+                            step=1,
+                            randomize=True,
+                        )
                 with gr.Column():
-                    enable_auto_prompt = gr.Checkbox(
-                        label="Auto generate text prompt from input image with BLIP2",
-                        info="Warning: Enable this may makes your prompt not working.",
-                        value=enable_auto_prompt_default,
-                    )
-                    a_prompt = gr.Textbox(
-                        label="Positive Prompt",
-                        info="Text in the expected things of edited region",
-                        value="best quality, extremely detailed,",
-                    )
-                    n_prompt = gr.Textbox(
-                        label="Negative Prompt",
-                        value="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, NSFW",
-                    )
-                with gr.Row():
-                    num_samples = gr.Slider(
-                        label="Images", minimum=1, maximum=12, value=2, step=1
-                    )
-                    seed = gr.Slider(
-                        label="Seed",
-                        minimum=-1,
-                        maximum=2147483647,
-                        step=1,
-                        randomize=True,
-                    )
+                    with gr.Row():
+                        enable_auto_prompt = gr.Checkbox(
+                            label="Prompt Auto Generation (Enable this may makes your prompt not working)",
+                            # info="",
+                            value=enable_auto_prompt_default,
+                        )
+                    with gr.Row():
+                        a_prompt = gr.Textbox(
+                            label="Positive Prompt",
+                            info="Text in the expected things of edited region",
+                            value="best quality, extremely detailed,",
+                        )
+                        n_prompt = gr.Textbox(
+                            label="Negative Prompt",
+                            value="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, NSFW",
+                        )
+
                 with gr.Row():
                     enable_tile = gr.Checkbox(
-                        label="Tile refinement for high resolution generation",
+                        label="High-resolution Refinement",
                         info="Slow inference",
                         value=True,
                     )
                     refine_alignment_ratio = gr.Slider(
-                        label="Alignment Strength",
-                        info="Large value -> strict alignment with input image. Small value -> strong global consistency",
+                        label="Similarity with Initial Results",
+                        # info="Large value -> strict alignment with input image. Small value -> strong global consistency",
                         minimum=0.0,
                         maximum=1.0,
                         value=0.95,
                         step=0.05,
                     )
 
-                with gr.Accordion("Reference options", open=False):
+                with gr.Accordion("Cross-image Drag Options", open=False):
                     # ref_image = gr.Image(
                     #     source='upload', label="Upload a reference image", type="pil", value=None)
                     ref_image = gr.Image(
@@ -120,8 +137,9 @@ def create_demo_template(
                         label="Upload a reference image and cover the region you want to use with sketch",
                         type="pil",
                         tool="sketch",
+                        brush_color="#00FFBF",
                     )
-                    with gr.Column():
+                    with gr.Row():
                         ref_auto_prompt = gr.Checkbox(
                             label="Ref. Auto Prompt", value=True
                         )
@@ -148,52 +166,25 @@ def create_demo_template(
                     with gr.Row():
                         reference_attn = gr.Checkbox(
                             label="reference_attn", value=True)
-                        attention_auto_machine_weight = gr.Slider(
-                            label="attention_weight",
-                            minimum=0,
-                            maximum=1.0,
-                            value=0.8,
-                            step=0.01,
+                        reference_adain = gr.Checkbox(
+                            label="reference_adain", value=True
                         )
                     with gr.Row():
-                        reference_adain = gr.Checkbox(
-                            label="reference_adain", value=False
-                        )
-                        gn_auto_machine_weight = gr.Slider(
-                            label="gn_weight",
+                        ref_sam_scale = gr.Slider(
+                            label="Pos Control Scale",
                             minimum=0,
                             maximum=1.0,
-                            value=0.1,
-                            step=0.01,
+                            value=0.3,
+                            step=0.1,
                         )
-                    style_fidelity = gr.Slider(
-                        label="Style fidelity",
-                        minimum=0,
-                        maximum=100.0,
-                        value=0.5,
-                        step=0.1,
-                    )
-                    ref_sam_scale = gr.Slider(
-                        label="SAM Control Scale",
-                        minimum=0,
-                        maximum=1.0,
-                        value=0.3,
-                        step=0.1,
-                    )
-                    ref_inpaint_scale = gr.Slider(
-                        label="Inpaint Control Scale",
-                        minimum=0,
-                        maximum=1.0,
-                        value=0.2,
-                        step=0.1,
-                    )
-                    ref_scale = gr.Slider(
-                        label="Reference Guidance Scale",
-                        minimum=0,
-                        maximum=2.0,
-                        value=0.2,
-                        step=0.1,
-                    )
+                        ref_inpaint_scale = gr.Slider(
+                            label="Content Control Scale",
+                            minimum=0,
+                            maximum=1.0,
+                            value=0.2,
+                            step=0.1,
+                        )
+
                     with gr.Row():
                         ref_textinv = gr.Checkbox(
                             label="Use textual inversion token", value=False
@@ -203,8 +194,37 @@ def create_demo_template(
                             info="Text in the inversion token path",
                             value=None,
                         )
+                    with gr.Accordion("Advanced options", open=False):
+                        style_fidelity = gr.Slider(
+                            label="Style fidelity",
+                            minimum=0,
+                            maximum=1.,
+                            value=0.,
+                            step=0.1,
+                        )
+                        attention_auto_machine_weight = gr.Slider(
+                            label="Attention Reference Weight",
+                            minimum=0,
+                            maximum=1.0,
+                            value=1.0,
+                            step=0.01,
+                        )
+                        gn_auto_machine_weight = gr.Slider(
+                            label="GroupNorm Reference Weight",
+                            minimum=0,
+                            maximum=1.0,
+                            value=1.0,
+                            step=0.01,
+                        )
+                        ref_scale = gr.Slider(
+                            label="Frequency Reference Guidance Scale",
+                            minimum=0,
+                            maximum=1.0,
+                            value=0.0,
+                            step=0.1,
+                        )
 
-                with gr.Accordion("Advanced options", open=False):
+                with gr.Accordion("Advanced Options", open=False):
                     mask_image = gr.Image(
                         source="upload",
                         label="Upload a predefined mask of edit region: Switch to Brush mode when using this!",
@@ -251,19 +271,16 @@ def create_demo_template(
                     )
             with gr.Column():
                 result_gallery_refine = gr.Gallery(
-                    label="Output High quality", show_label=True, elem_id="gallery"
-                ).style(grid=2, preview=False)
+                    label="Output High quality", show_label=True, elem_id="gallery", preview=False)
                 result_gallery_init = gr.Gallery(
-                    label="Output Low quality", show_label=True, elem_id="gallery"
-                ).style(grid=2, height="auto")
+                    label="Output Low quality", show_label=True, elem_id="gallery", height="auto")
                 result_gallery_ref = gr.Gallery(
-                    label="Output Ref", show_label=False, elem_id="gallery"
-                ).style(grid=2, height="auto")
-                result_text = gr.Text(label="BLIP2+Human Prompt Text")
+                    label="Output Ref", show_label=False, elem_id="gallery", height="auto")
+                result_text = gr.Text(label="ALL Prompt Text")
 
         ips = [
             source_image_brush,
-            enable_all_generate,
+            gr.State(False),  # enable_all_generate
             mask_image,
             control_scale,
             enable_auto_prompt,
@@ -307,10 +324,56 @@ def create_demo_template(
                 result_text,
             ],
         )
+        ips_allregion = [
+            source_image_clean,
+            gr.State(True),  # enable_all_generate
+            mask_image,
+            control_scale,
+            enable_auto_prompt,
+            a_prompt,
+            n_prompt,
+            num_samples,
+            image_resolution,
+            detect_resolution,
+            ddim_steps,
+            guess_mode,
+            scale,
+            seed,
+            eta,
+            enable_tile,
+            refine_alignment_ratio,
+            refine_image_resolution,
+            alpha_weight,
+            use_scale_map,
+            condition_model,
+            ref_image,
+            attention_auto_machine_weight,
+            gn_auto_machine_weight,
+            style_fidelity,
+            reference_attn,
+            reference_adain,
+            ref_prompt,
+            ref_sam_scale,
+            ref_inpaint_scale,
+            ref_auto_prompt,
+            ref_textinv,
+            ref_textinv_path,
+            ref_scale,
+        ]
+        run_button_allregion.click(
+            fn=process,
+            inputs=ips_allregion,
+            outputs=[
+                result_gallery_refine,
+                result_gallery_init,
+                result_gallery_ref,
+                result_text,
+            ],
+        )
 
         ip_click = [
             origin_image,
-            enable_all_generate,
+            gr.State(False),  # enable_all_generate
             click_mask,
             control_scale,
             enable_auto_prompt,

@@ -58,15 +58,15 @@ with gr.Blocks() as demo:
         #                                   blip_processor=blip_processor,
         #                                   blip_model=blip_model)
         #     create_demo_handsome(model.process, model.process_image_click)
-        with gr.TabItem('Edit More'):
-            model = EditAnythingLoraModel(base_model_path="andite/anything-v4.0",
-                                          lora_model_path=None, use_blip=True, extra_inpaint=True,
-                                          sam_generator=sam_generator,
-                                          mask_predictor=mask_predictor,
-                                          blip_processor=blip_processor,
-                                          blip_model=blip_model,
-                                          lora_weight=0.5,
-                                          )
+        # with gr.TabItem('Edit More'):
+        #     model = EditAnythingLoraModel(base_model_path="andite/anything-v4.0",
+        #                                   lora_model_path=None, use_blip=True, extra_inpaint=True,
+        #                                   sam_generator=sam_generator,
+        #                                   mask_predictor=mask_predictor,
+        #                                   blip_processor=blip_processor,
+        #                                   blip_model=blip_model,
+        #                                   lora_weight=0.5,
+        #                                   )
             create_demo_beauty(model.process, model.process_image_click)
         # with gr.TabItem('Generate Anything'):
         #     create_demo_generate_anything()
