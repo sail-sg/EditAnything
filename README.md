@@ -10,6 +10,10 @@ Any forms of contribution and suggestion
 are very welcomed!
 
 # News🔥
+2023/08/09 - Revise UI and code, fixed multiple known issues.
+
+2023/07/25 - EditAnything is accepted by the ACM MM demo track.
+
 2023/06/09 - Support cross-image region drag and merge, unleash creative fusion!
 
 2023/05/24 - Support multiple high-quality character editing: clothes, haircut, colored contact lenses.
@@ -225,6 +229,7 @@ Highlight features:
 
 Put these models in `models` folder.
 ```bash
+# BLIP2 and SAM will be audo installed by running app.py
 pip install git+https://github.com/huggingface/transformers.git
 
 pip install git+https://github.com/facebookresearch/segment-anything.git
@@ -240,9 +245,7 @@ pip install git+https://github.com/IDEA-Research/GroundingDINO.git
 **Download pretrained model**
 ```bash
 
-# Segment-anything ViT-H SAM model. 
-cd models/
-wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+# Segment-anything ViT-H SAM model will be auto downloaded. 
 
 # BLIP2 model will be auto downloaded.
 
@@ -260,16 +263,17 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 
 **Run Demo**
 ```bash
+python app.py
+# or
+python editany.py
+# or
 python sam2image.py
-# or 
-python sam2edit.py
 # or
 python sam2vlpart_edit.py
 # or
 python sam2groundingdino_edit.py
 ```
-Set 'use_gradio = True' in these files if you
-have GUI to run the gradio demo.
+
 
 # Model Zoo
 
@@ -288,6 +292,15 @@ have GUI to run the gradio demo.
 
 
 # Acknowledgement
+```
+@InProceedings{gao2023editanything,
+  author = {Gao, Shanghua and Lin, Zhijie and Xie, Xingyu and Zhou, Pan and Cheng, Ming-Ming and Yan, Shuicheng},
+  title = {EditAnything: Empowering Unparalleled Flexibility in Image Editing and Generation},
+  booktitle = {Proceedings of the 31st ACM International Conference on Multimedia, Demo track},
+  year = {2023},
+}
+```
+
 This project is based on:
 
 [Segment Anything](https://github.com/facebookresearch/segment-anything),
