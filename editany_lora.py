@@ -118,16 +118,55 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
     """
     max_length = pipeline.tokenizer.model_max_length
 
-    # simple way to determine length of tokens
-    count_prompt = len(re.split(r",", prompt))
-    count_negative_prompt = len(re.split(r",", negative_prompt))
+    # # simple way to determine length of tokens
+    # count_prompt = len(re.split(r",", prompt))
+    # count_negative_prompt = len(re.split(r",", negative_prompt))
 
-    # create the tensor based on which prompt is longer
-    if count_prompt >= count_negative_prompt:
-        input_ids = pipeline.tokenizer(
+    # # create the tensor based on which prompt is longer
+    # if count_prompt >= count_negative_prompt:
+    #     input_ids = pipeline.tokenizer(
+    #         prompt, return_tensors="pt", truncation=False
+    #     ).input_ids.to(device)
+    #     shape_max_length = input_ids.shape[-1]
+    #     negative_ids = pipeline.tokenizer(
+    #         negative_prompt,
+    #         truncation=False,
+    #         padding="max_length",
+    #         max_length=shape_max_length,
+    #         return_tensors="pt",
+    #     ).input_ids.to(device)
+    # else:
+    #     negative_ids = pipeline.tokenizer(
+    #         negative_prompt, return_tensors="pt", truncation=False
+    #     ).input_ids.to(device)
+    #     shape_max_length = negative_ids.shape[-1]
+    #     input_ids = pipeline.tokenizer(
+    #         prompt,
+    #         return_tensors="pt",
+    #         truncation=False,
+    #         padding="max_length",
+    #         max_length=shape_max_length,
+    #     ).input_ids.to(device)
+
+    # concat_embeds = []
+    # neg_embeds = []
+    # for i in range(0, shape_max_length, max_length):
+    #     concat_embeds.append(pipeline.text_encoder(
+    #         input_ids[:, i: i + max_length])[0])
+    #     neg_embeds.append(pipeline.text_encoder(
+    #         negative_ids[:, i: i + max_length])[0])
+
+    input_ids = pipeline.tokenizer(
             prompt, return_tensors="pt", truncation=False
         ).input_ids.to(device)
-        shape_max_length = input_ids.shape[-1]
+
+    negative_ids = pipeline.tokenizer(
+            negative_prompt, return_tensors="pt", truncation=False
+        ).input_ids.to(device)
+    
+    shape_max_length = max(input_ids.shape[-1],negative_ids.shape[-1])
+    
+    if input_ids.shape[-1]>negative_ids.shape[-1]:
         negative_ids = pipeline.tokenizer(
             negative_prompt,
             truncation=False,
@@ -136,17 +175,13 @@ def get_pipeline_embeds(pipeline, prompt, negative_prompt, device):
             return_tensors="pt",
         ).input_ids.to(device)
     else:
-        negative_ids = pipeline.tokenizer(
-            negative_prompt, return_tensors="pt", truncation=False
-        ).input_ids.to(device)
-        shape_max_length = negative_ids.shape[-1]
         input_ids = pipeline.tokenizer(
-            prompt,
-            return_tensors="pt",
-            truncation=False,
-            padding="max_length",
-            max_length=shape_max_length,
-        ).input_ids.to(device)
+        prompt,
+        return_tensors="pt",
+        truncation=False,
+        padding="max_length",
+        max_length=shape_max_length,
+    ).input_ids.to(device)
 
     concat_embeds = []
     neg_embeds = []
