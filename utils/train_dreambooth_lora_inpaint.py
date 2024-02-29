@@ -19,6 +19,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
+from diffusers.utils import TEXT_ENCODER_TARGET_MODULES
 
 from diffusers import (
     AutoencoderKL,
