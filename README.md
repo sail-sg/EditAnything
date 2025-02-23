@@ -288,8 +288,8 @@ python sam2groundingdino_edit.py
 
 1. Generate training dataset with `dataset_build.py`.
 2. Transfer stable-diffusion model with `tool_add_control_sd21.py`.
-2. Train model with `sam_train_sd21.py`.
-
+3. Train model with `sam_train_sd21.py`.
+4. We consider using the `Adan` optimizer for model training.
 
 # Acknowledgement
 ```
